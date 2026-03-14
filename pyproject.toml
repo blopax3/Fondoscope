@@ -1,5 +1,5 @@
 [project]
-name = "fi-comparision"
+name = "fondoscope"
 version = "0.1.0"
 description = "Interactive fund history viewer backed by Morningstar scraping"
 requires-python = ">=3.13"

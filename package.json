@@ -1,5 +1,5 @@
 {
-  "name": "fi_comparision",
+  "name": "fondoscope",
   "version": "1.0.0",
   "description": "Interactive fund history viewer for investment funds by ISIN",
   "private": true,

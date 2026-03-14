@@ -4,6 +4,12 @@ Fondoscope es una aplicación para consultar y comparar fondos de inversión a p
 
 La idea es simple: introduces uno o varios fondos, eliges la divisa de cada uno y obtienes una vista clara de su evolución histórica, su comportamiento relativo y sus métricas principales.
 
+## Demo online
+
+La aplicación está desplegada en Vercel y puede probarse aquí:
+
+[https://fondoscope-plum.vercel.app/](https://fondoscope-plum.vercel.app/)
+
 ## Qué puede hacer la aplicación
 
 - comparar varios fondos al mismo tiempo
@@ -106,7 +112,7 @@ La aplicación quedará disponible normalmente en `http://localhost:3000`.
 
 ## Despliegue
 
-El proyecto está preparado para desplegarse en Vercel.
+El proyecto está desplegado en Vercel.
 
 La arquitectura actual mantiene el mismo endpoint público para el frontend y utiliza Python para la obtención de datos en producción.
 
@@ -123,7 +129,7 @@ La arquitectura actual mantiene el mismo endpoint público para el frontend y ut
 ## Estado del proyecto
 
 - funcional en local
-- preparado para Vercel
+- desplegado en Vercel
 - sin caché local
 
 ## Licencia

@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata = {
-  title: "FI Comparison",
+  title: "Fondoscope",
   description: "Histórico interactivo de fondos de inversión por ISIN",
 };
 

@@ -166,7 +166,7 @@ export default function FundDashboard() {
   return (
     <main className="workspace">
       <header className="workspace__header">
-        <h1>Histórico de Fondos</h1>
+        <h1>Fondoscope</h1>
         <p className="workspace__subtitle">
           Consulta y compara fondos de inversión por ISIN
         </p>
