@@ -1,0 +1,7 @@
+.next
+node_modules
+.venv
+.vercel
+data/cache
+__pycache__
+*.pyc

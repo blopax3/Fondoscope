@@ -1,0 +1,137 @@
+"use client";
+
+import { useMemo } from "react";
+import ComparisonTable from "./comparison-table";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  buildComparisonSeries,
+  formatCompactDate,
+  formatDateLabel,
+  formatPercent,
+  FUND_COLORS,
+  getFundDisplayName,
+} from "../../lib/fund-data";
+
+export default function ComparisonChart({ funds, selectedFunds, rangeKey, loading, onToggleFund }) {
+  const selectedFundsSet = useMemo(() => new Set(selectedFunds), [selectedFunds]);
+  const visibleFunds = useMemo(
+    () => funds.filter((fund) => selectedFundsSet.has(fund.isin)),
+    [funds, selectedFundsSet]
+  );
+  const chartData = useMemo(
+    () => buildComparisonSeries(funds, selectedFunds, rangeKey),
+    [funds, selectedFunds, rangeKey]
+  );
+
+  return (
+    <section className={loading ? "comparison-panel comparison-panel--loading" : "comparison-panel"}>
+      <div className="comparison-panel__header">
+        <div>
+          <p className="fund-card__eyebrow">Comparador</p>
+          <p className="comparison-panel__lede">
+            Selecciona los fondos que quieres superponer. Cada línea muestra la variación porcentual acumulada desde el inicio del rango activo.
+          </p>
+        </div>
+        <div className="comparison-panel__range">{rangeKey}</div>
+      </div>
+
+      <div className="comparison-selector">
+        {funds.map((fund, index) => {
+          const active = selectedFundsSet.has(fund.isin);
+
+          return (
+            <button
+              key={fund.isin}
+              type="button"
+              className={active ? "comparison-chip active" : "comparison-chip"}
+              onClick={() => onToggleFund(fund.isin)}
+            >
+              <span
+                className="comparison-chip__swatch"
+                style={{ backgroundColor: FUND_COLORS[index % FUND_COLORS.length] }}
+              />
+              {getFundDisplayName(fund)}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="comparison-panel__chart">
+        {visibleFunds.length && chartData.length ? (
+          <ResponsiveContainer width="100%" height={420}>
+            <LineChart
+              key={`${rangeKey}-${visibleFunds.map((fund) => fund.isin).join("-")}`}
+              data={chartData}
+              margin={{ top: 16, right: 12, left: 0, bottom: 8 }}
+            >
+              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickFormatter={formatCompactDate}
+                tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={(value) => formatPercent(value, 0)}
+                tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+                width={52}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "#0f0f12",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: "8px",
+                  fontSize: "0.82rem",
+                }}
+                labelFormatter={formatDateLabel}
+                formatter={(value, name) => [formatPercent(Number(value)), name]}
+              />
+              <Legend />
+              {visibleFunds.map((fund, index) => (
+                <Line
+                  key={fund.isin}
+                  type="monotone"
+                  dataKey={fund.isin}
+                  name={getFundDisplayName(fund)}
+                  stroke={FUND_COLORS[index % FUND_COLORS.length]}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                  activeDot={{ r: 5 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="empty-chart">
+            Selecciona al menos un fondo con datos para mostrar la comparativa.
+          </div>
+        )}
+      </div>
+
+      {visibleFunds.length ? <ComparisonTable funds={visibleFunds} rangeKey={rangeKey} /> : null}
+
+      {loading ? (
+        <div className="loading-overlay" aria-live="polite" aria-busy="true">
+          <div className="loading-overlay__badge">
+            <span className="loading-overlay__spinner" aria-hidden="true" />
+            Actualizando comparador...
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
