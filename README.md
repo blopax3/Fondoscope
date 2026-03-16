@@ -10,6 +10,12 @@ La aplicación está desplegada en Vercel y puede probarse aquí:
 
 [https://fondoscope-plum.vercel.app/](https://fondoscope-plum.vercel.app/)
 
+## Ejemplo de la interfaz
+
+![Ejemplo de Fondoscope](./example.png)
+
+Vista de ejemplo de la web comparando dos fondos, con gráfico de evolución y tabla comparativa de métricas.
+
 ## Qué puede hacer la aplicación
 
 - comparar varios fondos al mismo tiempo
@@ -79,12 +85,6 @@ Puede resultar útil para:
 
 La aplicación obtiene históricos y metadatos a partir de endpoints públicos de Morningstar.
 
-Esto implica que:
-
-- la disponibilidad depende del proveedor externo
-- cambios en la respuesta de Morningstar pueden afectar la extracción
-- la velocidad de carga puede variar según la respuesta remota
-
 ## Desarrollo local
 
 ### Requisitos
@@ -125,13 +125,3 @@ La arquitectura actual mantiene el mismo endpoint público para el frontend y ut
 - pandas
 - requests
 - Vercel
-
-## Estado del proyecto
-
-- funcional en local
-- desplegado en Vercel
-- sin caché local
-
-## Licencia
-
-Pendiente de definir.
