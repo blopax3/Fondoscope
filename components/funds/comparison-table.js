@@ -1,10 +1,33 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { buildComparisonMetrics, getFundDisplayName } from "../../lib/fund-data";
 
 function ComparisonTable({ funds, rangeKey }) {
   const metrics = useMemo(() => buildComparisonMetrics(funds, rangeKey), [funds, rangeKey]);
+  const scrollerRef = useRef(null);
+  const [isHorizontallyScrolled, setIsHorizontallyScrolled] = useState(false);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) {
+      return undefined;
+    }
+
+    const syncScrollState = () => {
+      const nextValue = scroller.scrollLeft > 0;
+      setIsHorizontallyScrolled((currentValue) => (
+        currentValue === nextValue ? currentValue : nextValue
+      ));
+    };
+
+    syncScrollState();
+    scroller.addEventListener("scroll", syncScrollState, { passive: true });
+
+    return () => {
+      scroller.removeEventListener("scroll", syncScrollState);
+    };
+  }, [funds.length, rangeKey]);
 
   if (!funds.length) {
     return null;
@@ -21,7 +44,11 @@ function ComparisonTable({ funds, rangeKey }) {
         </div>
       </div>
 
-      <div className="comparison-table-panel__scroller">
+      <div
+        ref={scrollerRef}
+        className="comparison-table-panel__scroller"
+        data-scrolled={isHorizontallyScrolled ? "true" : "false"}
+      >
         <table className="comparison-table">
           <thead>
             <tr>
@@ -35,7 +62,8 @@ function ComparisonTable({ funds, rangeKey }) {
           {metrics.sections.map((section) => (
             <tbody key={section.title}>
               <tr className="comparison-table__section-row">
-                <th colSpan={funds.length + 1}>{section.title}</th>
+                <th scope="rowgroup">{section.title}</th>
+                <td colSpan={funds.length} aria-hidden="true" />
               </tr>
 
               {section.rows.map((row) => (

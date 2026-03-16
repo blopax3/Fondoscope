@@ -6,7 +6,7 @@ import FundCard from "./funds/fund-card";
 import LoadingState from "./funds/loading-state";
 import RangeSelector from "./funds/range-selector";
 import ViewSwitcher from "./funds/view-switcher";
-import { fetchFunds, parseIsins } from "../lib/fund-data";
+import { fetchFunds, MAX_FUND_ENTRIES, parseIsins } from "../lib/fund-data";
 
 const CURRENCY_OPTIONS = [
   { value: "EUR", label: "EUR" },
@@ -33,10 +33,12 @@ export default function FundDashboard() {
   const [loading, setLoading] = useState(false);
   const [reloadingIsin, setReloadingIsin] = useState(null);
   const debounceRef = useRef(null);
+  const totalInputFunds = useMemo(() => parseIsins(inputValue).length, [inputValue]);
+  const overflowFundsCount = Math.max(totalInputFunds - MAX_FUND_ENTRIES, 0);
 
   // Auto-parse ISINs from textarea with debounce
   const syncEntries = useCallback((text) => {
-    const isins = parseIsins(text);
+    const isins = parseIsins(text, MAX_FUND_ENTRIES);
     setFundEntries((current) => {
       const existingMap = new Map(current.map((e) => [e.isin, e.currency]));
       return isins.map((isin) => ({
@@ -218,7 +220,9 @@ export default function FundDashboard() {
 
           <div className="input-bar__actions">
             <p className="input-bar__hint">
-              {fundEntries.length
+              {overflowFundsCount
+                ? `Máximo ${MAX_FUND_ENTRIES} fondos · Se ignoran ${overflowFundsCount} ISIN${overflowFundsCount > 1 ? "s" : ""} adicional${overflowFundsCount > 1 ? "es" : ""}`
+                : fundEntries.length
                 ? `${fundEntries.length} fondo${fundEntries.length > 1 ? "s" : ""} · Selecciona la divisa de cada fondo`
                 : "Separadores: línea, coma, espacio, punto y coma"
               }

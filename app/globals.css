@@ -56,7 +56,7 @@ body::before {
 /* ── Workspace layout ── */
 
 .workspace {
-  max-width: 1180px;
+  width: min(100%, clamp(1180px, 80vw, 1680px));
   margin: 0 auto;
   padding: 48px 24px 96px;
 }
@@ -447,7 +447,7 @@ body::before {
 .fund-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* ── Fund card ── */
@@ -727,6 +727,8 @@ body::before {
 .comparison-table-panel__scroller {
   overflow-x: auto;
   padding: 12px 0 0;
+  /* Opaque accent tint so sticky section headers do not double-blend on scroll. */
+  --comparison-section-bg: #142425;
 }
 
 .comparison-table {
@@ -758,14 +760,18 @@ body::before {
 }
 
 .comparison-table thead th:first-child,
-.comparison-table tbody th {
+.comparison-table tbody tr:not(.comparison-table__section-row) > th {
   position: sticky;
   left: 0;
   z-index: 1;
   background: var(--surface);
 }
 
-.comparison-table tbody th {
+.comparison-table thead th:first-child {
+  z-index: 3;
+}
+
+.comparison-table tbody tr:not(.comparison-table__section-row) > th {
   min-width: 230px;
   color: var(--text);
   font-weight: 500;
@@ -785,15 +791,28 @@ body::before {
 }
 
 .comparison-table__section-row th {
+  position: sticky;
   left: 0;
   z-index: 1;
-  background: var(--accent-bg);
+  background: var(--comparison-section-bg);
   color: var(--accent);
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  transition: background 150ms ease, box-shadow 150ms ease;
+}
+
+.comparison-table__section-row td {
+  background: var(--comparison-section-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+  transition: background 150ms ease;
+}
+
+.comparison-table-panel__scroller[data-scrolled="true"] .comparison-table__section-row th {
+  box-shadow: 12px 0 20px rgba(8, 8, 10, 0.32);
 }
 
 .comparison-table-panel__note {
