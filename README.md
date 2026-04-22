@@ -110,6 +110,14 @@ npm run dev
 
 La aplicación quedará disponible normalmente en `http://localhost:3000`.
 
+### Verificacion
+
+```bash
+npm run check
+```
+
+Este comando ejecuta `next lint` y despues `next build` para validar la aplicacion antes de desplegarla.
+
 ## Despliegue
 
 El proyecto está desplegado en Vercel.

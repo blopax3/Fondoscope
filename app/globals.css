@@ -861,6 +861,9 @@ body::before {
 /* ── Correlation matrix ── */
 
 .correlation-matrix-panel {
+  --correlation-negative: 34, 74, 132;
+  --correlation-neutral: 243, 244, 240;
+  --correlation-positive: 146, 63, 37;
   margin-top: 24px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--r-lg);
@@ -888,8 +891,9 @@ body::before {
 
 .correlation-matrix-panel__legend {
   display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   color: rgba(226, 221, 213, 0.72);
   font-family: var(--font-mono);
   font-size: 0.72rem;
@@ -898,18 +902,62 @@ body::before {
   flex-shrink: 0;
 }
 
+.correlation-matrix-panel__legend-headings,
+.correlation-matrix-panel__legend-labels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  width: 168px;
+}
+
+.correlation-matrix-panel__legend-headings {
+  color: rgba(226, 221, 213, 0.52);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.correlation-matrix-panel__legend-headings span:nth-child(2),
+.correlation-matrix-panel__legend-labels span:nth-child(2) {
+  text-align: center;
+}
+
+.correlation-matrix-panel__legend-headings span:last-child,
+.correlation-matrix-panel__legend-labels span:last-child {
+  text-align: right;
+}
+
+.correlation-matrix-panel__legend-labels {
+  color: rgba(235, 233, 227, 0.86);
+}
+
 .correlation-matrix-panel__legend-scale {
-  width: 104px;
-  height: 10px;
+  position: relative;
+  width: 168px;
+  height: 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background:
     linear-gradient(
       90deg,
-      rgba(232, 72, 85, 0.76) 0%,
-      rgba(255, 255, 255, 0.08) 50%,
-      rgba(0, 200, 150, 0.76) 100%
+      rgb(var(--correlation-negative)) 0%,
+      rgb(var(--correlation-neutral)) 50%,
+      rgb(var(--correlation-positive)) 100%
     );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.correlation-matrix-panel__legend-scale::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: rgba(8, 8, 10, 0.38);
 }
 
 .correlation-matrix-panel__scroller {
@@ -929,6 +977,7 @@ body::before {
   padding: 11px 15px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
 
 .correlation-matrix thead th {
@@ -974,6 +1023,13 @@ body::before {
   background: var(--correlation-row-bg);
 }
 
+.correlation-matrix thead th.is-highlighted,
+.correlation-matrix tbody th.is-highlighted {
+  color: #f6f1ea;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, var(--correlation-header-bg) 100%);
+}
+
 .correlation-matrix tbody th {
   min-width: 250px;
   color: rgba(226, 221, 213, 0.92);
@@ -988,6 +1044,10 @@ body::before {
   min-width: 116px;
 }
 
+.correlation-matrix tbody td.is-highlighted {
+  background: rgba(255, 255, 255, 0.052);
+}
+
 .correlation-matrix__cell {
   display: flex;
   align-items: center;
@@ -996,21 +1056,28 @@ body::before {
   border-radius: 10px;
   border: 1px solid var(--correlation-cell-border, var(--border));
   background: var(--correlation-cell-bg, rgba(255, 255, 255, 0.02));
-  color: #f6f1ea;
+  color: var(--correlation-cell-text, #f6f1ea);
   font-family: var(--font-mono);
   font-size: 0.86rem;
   font-weight: 700;
   letter-spacing: 0.015em;
   font-variant-numeric: tabular-nums;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 18px rgba(8, 8, 10, 0.12);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 
-.correlation-matrix__cell.positive {
-  color: #d7fff1;
+.correlation-matrix__cell--diagonal {
+  font-weight: 800;
 }
 
-.correlation-matrix__cell.negative {
-  color: #ffd8dd;
+.correlation-matrix__cell.is-active {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px var(--correlation-cell-shadow, rgba(255, 255, 255, 0.08)),
+    0 14px 26px rgba(8, 8, 10, 0.22);
 }
 
 .correlation-matrix__cell--na {
