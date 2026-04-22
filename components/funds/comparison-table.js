@@ -36,12 +36,7 @@ function ComparisonTable({ funds, rangeKey }) {
   return (
     <section className="comparison-table-panel">
       <div className="comparison-table-panel__header">
-        <div>
-          <p className="fund-card__eyebrow">Tabla comparativa</p>
-          <p className="comparison-table-panel__lede">
-            Debajo de la curva superpuesta tienes un resumen de metricas clave del periodo seleccionado y del historico completo.
-          </p>
-        </div>
+        <p className="fund-card__eyebrow">Tabla comparativa</p>
       </div>
 
       <div
@@ -52,7 +47,7 @@ function ComparisonTable({ funds, rangeKey }) {
         <table className="comparison-table">
           <thead>
             <tr>
-              <th>Metrica</th>
+              <th>Métrica</th>
               {funds.map((fund) => (
                 <th key={fund.isin}>{getFundDisplayName(fund)}</th>
               ))}

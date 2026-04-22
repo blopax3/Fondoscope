@@ -613,9 +613,10 @@ body::before {
 .comparison-panel {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(20, 20, 25, 0.98) 0%, rgba(14, 14, 18, 0.98) 100%);
   padding: 22px;
   position: relative;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .comparison-panel--loading {
@@ -638,8 +639,8 @@ body::before {
 
 .comparison-panel__lede {
   margin: 5px 0 0;
-  color: var(--text-dim);
-  font-size: 0.86rem;
+  color: rgba(226, 221, 213, 0.7);
+  font-size: 0.88rem;
   max-width: 58ch;
   line-height: 1.55;
 }
@@ -667,28 +668,29 @@ body::before {
 
 .comparison-chip {
   appearance: none;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   cursor: pointer;
   font-family: var(--font-body);
-  font-size: 0.8rem;
+  font-size: 0.84rem;
+  font-weight: 500;
   display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 7px 13px;
   border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(226, 221, 213, 0.66);
   transition: all 150ms ease;
 }
 
 .comparison-chip:hover {
-  border-color: var(--border-strong);
+  border-color: rgba(255, 255, 255, 0.14);
   color: var(--text);
 }
 
 .comparison-chip.active {
-  border-color: var(--border-strong);
-  background: var(--elevated);
+  border-color: rgba(0, 200, 150, 0.2);
+  background: rgba(0, 200, 150, 0.08);
   color: var(--text);
 }
 
@@ -705,30 +707,31 @@ body::before {
 /* ── Comparison table ── */
 
 .comparison-table-panel {
-  margin-top: 22px;
-  border: 1px solid var(--border);
+  margin-top: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--r-lg);
-  background: var(--elevated);
+  background: linear-gradient(180deg, rgba(21, 22, 28, 0.98) 0%, rgba(15, 16, 21, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   overflow: hidden;
 }
 
 .comparison-table-panel__header {
-  padding: 16px 18px 0;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .comparison-table-panel__lede {
   margin: 5px 0 0;
-  color: var(--text-dim);
-  font-size: 0.82rem;
+  color: rgba(226, 221, 213, 0.66);
+  font-size: 0.84rem;
   line-height: 1.55;
   max-width: 68ch;
 }
 
 .comparison-table-panel__scroller {
   overflow-x: auto;
-  padding: 12px 0 0;
-  /* Opaque accent tint so sticky section headers do not double-blend on scroll. */
-  --comparison-section-bg: #142425;
+  --comparison-header-bg: #101218;
+  --comparison-section-bg: #163331;
 }
 
 .comparison-table {
@@ -742,13 +745,13 @@ body::before {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--surface);
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
+  background: var(--comparison-header-bg);
+  color: rgba(226, 221, 213, 0.86);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
 }
 
 .comparison-table th,
@@ -764,25 +767,47 @@ body::before {
   position: sticky;
   left: 0;
   z-index: 1;
-  background: var(--surface);
+  background: var(--comparison-header-bg);
 }
 
 .comparison-table thead th:first-child {
   z-index: 3;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.comparison-table tbody tr:not(.comparison-table__section-row) {
+  --comparison-row-bg: rgba(255, 255, 255, 0.018);
+}
+
+.comparison-table tbody tr:not(.comparison-table__section-row):nth-child(even) {
+  --comparison-row-bg: rgba(255, 255, 255, 0.034);
+}
+
+.comparison-table tbody tr:not(.comparison-table__section-row) > th,
+.comparison-table tbody tr:not(.comparison-table__section-row) > td {
+  background: var(--comparison-row-bg);
 }
 
 .comparison-table tbody tr:not(.comparison-table__section-row) > th {
-  min-width: 230px;
-  color: var(--text);
-  font-weight: 500;
-  font-size: 0.86rem;
+  min-width: 250px;
+  color: rgba(226, 221, 213, 0.92);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .comparison-table td {
-  min-width: 140px;
-  color: var(--text-dim);
+  min-width: 152px;
+  color: rgba(226, 221, 213, 0.78);
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 0.86rem;
+  font-weight: 500;
+  line-height: 1.55;
   font-variant-numeric: tabular-nums;
 }
 
@@ -790,16 +815,24 @@ body::before {
   color: inherit;
 }
 
+.comparison-table td span.positive {
+  color: #7ce8cb;
+}
+
+.comparison-table td span.negative {
+  color: #ff9ca6;
+}
+
 .comparison-table__section-row th {
   position: sticky;
   left: 0;
   z-index: 1;
   background: var(--comparison-section-bg);
-  color: var(--accent);
+  color: #8fe8d1;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   transition: background 150ms ease, box-shadow 150ms ease;
 }
@@ -811,15 +844,190 @@ body::before {
   transition: background 150ms ease;
 }
 
+.comparison-table-panel__scroller[data-scrolled="true"] .comparison-table tbody tr:not(.comparison-table__section-row) > th,
 .comparison-table-panel__scroller[data-scrolled="true"] .comparison-table__section-row th {
   box-shadow: 12px 0 20px rgba(8, 8, 10, 0.32);
 }
 
 .comparison-table-panel__note {
   margin: 0;
-  padding: 13px 18px;
-  color: var(--text-dim);
-  font-size: 0.78rem;
+  padding: 14px 20px;
+  color: rgba(226, 221, 213, 0.66);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Correlation matrix ── */
+
+.correlation-matrix-panel {
+  margin-top: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, rgba(21, 22, 28, 0.98) 0%, rgba(15, 16, 21, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.correlation-matrix-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.correlation-matrix-panel__lede {
+  margin: 5px 0 0;
+  color: rgba(226, 221, 213, 0.66);
+  font-size: 0.84rem;
+  line-height: 1.55;
+  max-width: 68ch;
+}
+
+.correlation-matrix-panel__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(226, 221, 213, 0.72);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.correlation-matrix-panel__legend-scale {
+  width: 104px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(232, 72, 85, 0.76) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(0, 200, 150, 0.76) 100%
+    );
+}
+
+.correlation-matrix-panel__scroller {
+  overflow-x: auto;
+  --correlation-header-bg: #101218;
+}
+
+.correlation-matrix {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.correlation-matrix th,
+.correlation-matrix td {
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.correlation-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--correlation-header-bg);
+  color: rgba(226, 221, 213, 0.86);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
+.correlation-matrix thead th:first-child,
+.correlation-matrix tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--correlation-header-bg);
+}
+
+.correlation-matrix thead th:first-child {
+  z-index: 3;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.correlation-matrix tbody tr {
+  --correlation-row-bg: rgba(255, 255, 255, 0.018);
+}
+
+.correlation-matrix tbody tr:nth-child(even) {
+  --correlation-row-bg: rgba(255, 255, 255, 0.034);
+}
+
+.correlation-matrix tbody tr > th,
+.correlation-matrix tbody tr > td {
+  background: var(--correlation-row-bg);
+}
+
+.correlation-matrix tbody th {
+  min-width: 250px;
+  color: rgba(226, 221, 213, 0.92);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.correlation-matrix td {
+  min-width: 116px;
+}
+
+.correlation-matrix__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: 10px;
+  border: 1px solid var(--correlation-cell-border, var(--border));
+  background: var(--correlation-cell-bg, rgba(255, 255, 255, 0.02));
+  color: #f6f1ea;
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.correlation-matrix__cell.positive {
+  color: #d7fff1;
+}
+
+.correlation-matrix__cell.negative {
+  color: #ffd8dd;
+}
+
+.correlation-matrix__cell--na {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(226, 221, 213, 0.58);
+}
+
+.correlation-matrix-panel__scroller[data-scrolled="true"] .correlation-matrix tbody th {
+  box-shadow: 12px 0 20px rgba(8, 8, 10, 0.32);
+}
+
+.correlation-matrix-panel__note {
+  margin: 0;
+  padding: 14px 20px;
+  color: rgba(226, 221, 213, 0.66);
+  font-size: 0.8rem;
   line-height: 1.55;
   border-top: 1px solid var(--border);
 }
@@ -981,6 +1189,10 @@ body::before {
   }
 
   .comparison-panel__header {
+    flex-direction: column;
+  }
+
+  .correlation-matrix-panel__header {
     flex-direction: column;
   }
 

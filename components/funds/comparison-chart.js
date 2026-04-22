@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import ComparisonTable from "./comparison-table";
+import CorrelationMatrix from "./correlation-matrix";
 import {
   CartesianGrid,
   Legend,
@@ -71,34 +72,48 @@ export default function ComparisonChart({ funds, selectedFunds, rangeKey, loadin
             <LineChart
               key={`${rangeKey}-${visibleFunds.map((fund) => fund.isin).join("-")}`}
               data={chartData}
-              margin={{ top: 16, right: 12, left: 0, bottom: 8 }}
+              margin={{ top: 16, right: 12, left: 0, bottom: 12 }}
             >
-              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={formatCompactDate}
-                tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
+                tick={{ fill: "rgba(226,221,213,0.74)", fontSize: 12, fontFamily: "var(--font-mono)" }}
                 axisLine={false}
                 tickLine={false}
+                interval="preserveStartEnd"
+                minTickGap={28}
+                tickMargin={10}
+                height={42}
+                padding={{ left: 8, right: 8 }}
               />
               <YAxis
                 tickFormatter={(value) => formatPercent(value, 0)}
-                tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
+                tick={{ fill: "rgba(226,221,213,0.74)", fontSize: 12, fontFamily: "var(--font-mono)" }}
                 axisLine={false}
                 tickLine={false}
                 width={52}
               />
               <Tooltip
                 contentStyle={{
-                  background: "#0f0f12",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: "8px",
+                  background: "#111218",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "10px",
+                  color: "#f6f1ea",
+                  fontFamily: "var(--font-body)",
                   fontSize: "0.82rem",
                 }}
                 labelFormatter={formatDateLabel}
                 formatter={(value, name) => [formatPercent(Number(value)), name]}
               />
-              <Legend />
+              <Legend
+                wrapperStyle={{
+                  paddingTop: "18px",
+                  color: "rgba(226, 221, 213, 0.82)",
+                  fontFamily: "var(--font-body)",
+                  fontSize: "0.82rem",
+                }}
+              />
               {visibleFunds.map((fund, index) => (
                 <Line
                   key={fund.isin}
@@ -123,6 +138,8 @@ export default function ComparisonChart({ funds, selectedFunds, rangeKey, loadin
       </div>
 
       {visibleFunds.length ? <ComparisonTable funds={visibleFunds} rangeKey={rangeKey} /> : null}
+
+      {visibleFunds.length ? <CorrelationMatrix funds={visibleFunds} rangeKey={rangeKey} /> : null}
 
       {loading ? (
         <div className="loading-overlay" aria-live="polite" aria-busy="true">
