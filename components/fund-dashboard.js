@@ -7,6 +7,7 @@ import LoadingState from "./funds/loading-state";
 import RangeSelector from "./funds/range-selector";
 import ViewSwitcher from "./funds/view-switcher";
 import { fetchFunds, MAX_FUND_ENTRIES, parseIsins } from "../lib/fund-data";
+import { getI18n } from "../lib/i18n";
 
 const CURRENCY_OPTIONS = [
   { value: "EUR", label: "EUR" },
@@ -21,7 +22,8 @@ const CURRENCY_OPTIONS = [
   { value: "AUD", label: "AUD" },
 ];
 
-export default function FundDashboard() {
+export default function FundDashboard({ language = "en" }) {
+  const { dashboard } = getI18n(language);
   const [inputValue, setInputValue] = useState("");
   const [fundEntries, setFundEntries] = useState([]);
   const [rangeKey, setRangeKey] = useState("1Y");
@@ -79,7 +81,7 @@ export default function FundDashboard() {
     setRequestError("");
 
     try {
-      const payload = await fetchFunds(entries);
+      const payload = await fetchFunds(entries, language);
       setFunds(payload.funds || []);
       setSelectedFunds((payload.funds || []).map((fund) => fund.isin));
       setErrors(payload.errors || []);
@@ -87,7 +89,7 @@ export default function FundDashboard() {
       setFunds([]);
       setSelectedFunds([]);
       setErrors([]);
-      setRequestError(error.message || "No se pudo cargar la información.");
+      setRequestError(error.message || dashboard.loadError);
     } finally {
       setLoading(false);
     }
@@ -96,7 +98,7 @@ export default function FundDashboard() {
   async function reloadFund(isin, currency) {
     setReloadingIsin(isin);
     try {
-      const payload = await fetchFunds([{ isin, currency }]);
+      const payload = await fetchFunds([{ isin, currency }], language);
       const newFund = (payload.funds || [])[0];
       if (newFund) {
         setFunds((current) =>
@@ -110,7 +112,7 @@ export default function FundDashboard() {
         ]);
       }
     } catch (error) {
-      setRequestError(error.message || "No se pudo recargar el fondo.");
+      setRequestError(error.message || dashboard.reloadError);
     } finally {
       setReloadingIsin(null);
     }
@@ -152,7 +154,7 @@ export default function FundDashboard() {
     event.preventDefault();
 
     if (!fundEntries.length) {
-      setRequestError("Introduce al menos un ISIN válido.");
+      setRequestError(dashboard.missingIsin);
       return;
     }
 
@@ -170,7 +172,7 @@ export default function FundDashboard() {
       <header className="workspace__header">
         <h1>Fondoscope</h1>
         <p className="workspace__subtitle">
-          Consulta y compara fondos de inversión por ISIN
+          {dashboard.subtitle}
         </p>
       </header>
 
@@ -179,7 +181,7 @@ export default function FundDashboard() {
           <textarea
             value={inputValue}
             onChange={(event) => setInputValue(event.target.value)}
-            placeholder="Introduce ISINs — uno por línea, separados por comas o espacios"
+            placeholder={dashboard.placeholder}
             rows={3}
           />
 
@@ -208,7 +210,7 @@ export default function FundDashboard() {
                     type="button"
                     className="fund-entry__remove"
                     onClick={() => handleRemoveEntry(entry.isin)}
-                    title="Eliminar"
+                    title={dashboard.removeTitle}
                   >
                     ×
                   </button>
@@ -221,14 +223,14 @@ export default function FundDashboard() {
           <div className="input-bar__actions">
             <p className="input-bar__hint">
               {overflowFundsCount
-                ? `Máximo ${MAX_FUND_ENTRIES} fondos · Se ignoran ${overflowFundsCount} ISIN${overflowFundsCount > 1 ? "s" : ""} adicional${overflowFundsCount > 1 ? "es" : ""}`
+                ? dashboard.maxFundsHint(MAX_FUND_ENTRIES, overflowFundsCount)
                 : fundEntries.length
-                ? `${fundEntries.length} fondo${fundEntries.length > 1 ? "s" : ""} · Selecciona la divisa de cada fondo`
-                : "Separadores: línea, coma, espacio, punto y coma"
+                ? dashboard.selectedFundsHint(fundEntries.length)
+                : dashboard.emptyHint
               }
             </p>
             <button type="submit" className="btn btn--primary" disabled={loading || !fundEntries.length}>
-              {loading ? "Cargando…" : "Consultar"}
+              {loading ? dashboard.loadingButton : dashboard.submitButton}
             </button>
           </div>
         </div>
@@ -238,7 +240,7 @@ export default function FundDashboard() {
 
       {errors.length ? (
         <section className="feedback-block">
-          <h2>ISINs con error</h2>
+          <h2>{dashboard.errorSectionTitle}</h2>
           <div className="feedback-list">
             {errors.map((item) => (
               <article key={item.isin} className="feedback-card">
@@ -253,17 +255,17 @@ export default function FundDashboard() {
       {hasResults ? (
         <div className="toolbar">
           <div className="toolbar__left">
-            <ViewSwitcher activeView={activeView} onChange={setActiveView} />
+            <ViewSwitcher language={language} activeView={activeView} onChange={setActiveView} />
             <RangeSelector rangeKey={rangeKey} onSelect={setRangeKey} />
           </div>
           <div className="toolbar__stats">
-            <span>{stats.funds} fondos</span>
+            <span>{dashboard.statsFunds(stats.funds)}</span>
             <span>·</span>
             <span>{stats.points} pts</span>
             {stats.errors > 0 && (
               <>
                 <span>·</span>
-                <span className="negative">{stats.errors} err</span>
+                <span className="negative">{dashboard.statsErrors(stats.errors)}</span>
               </>
             )}
             <span>·</span>
@@ -273,11 +275,12 @@ export default function FundDashboard() {
       ) : null}
 
       {showLoadingState
-        ? <LoadingState variant={activeView === "compare" ? "compare" : "cards"} />
+        ? <LoadingState language={language} variant={activeView === "compare" ? "compare" : "cards"} />
         : hasResults
           ? activeView === "compare"
             ? (
               <ComparisonChart
+                language={language}
                 funds={funds}
                 selectedFunds={selectedFunds}
                 rangeKey={rangeKey}
@@ -290,6 +293,7 @@ export default function FundDashboard() {
                 {funds.map((fund) => (
                   <FundCard
                     key={fund.isin}
+                    language={language}
                     fund={fund}
                     rangeKey={rangeKey}
                     loading={loading || reloadingIsin === fund.isin}

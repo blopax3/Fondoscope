@@ -14,11 +14,21 @@ import {
   filterSeries,
   formatCompactDate,
   formatDateLabel,
+  formatPercent,
   formatPrice,
   getFundLabel,
 } from "../../lib/fund-data";
+import { getI18n } from "../../lib/i18n";
 
-export default function FundCard({ fund, rangeKey, loading, currencyOptions, onCurrencyChange }) {
+export default function FundCard({
+  language = "en",
+  fund,
+  rangeKey,
+  loading,
+  currencyOptions,
+  onCurrencyChange,
+}) {
+  const { fundCard } = getI18n(language);
   const filteredSeries = filterSeries(fund.history, rangeKey);
   const latestPoint = filteredSeries[filteredSeries.length - 1] ?? fund.history[fund.history.length - 1];
   const oldestPoint = filteredSeries[0];
@@ -28,7 +38,7 @@ export default function FundCard({ fund, rangeKey, loading, currencyOptions, onC
     <article className={loading ? "fund-card fund-card--loading" : "fund-card"}>
       <div className="fund-card__header">
         <div>
-          <p className="fund-card__eyebrow">Fondo</p>
+          <p className="fund-card__eyebrow">{fundCard.eyebrow}</p>
           <h2>{getFundLabel(fund)}</h2>
         </div>
         <div className="fund-card__meta">
@@ -54,17 +64,23 @@ export default function FundCard({ fund, rangeKey, loading, currencyOptions, onC
 
       <div className="fund-card__stats">
         <div>
-          <span>Último valor</span>
-          <strong>{latestPoint ? formatPrice(latestPoint.price, fund.currency) : "N/D"}</strong>
+          <span>{fundCard.latestValue}</span>
+          <strong>{latestPoint ? formatPrice(latestPoint.price, fund.currency, language) : fundCard.noData}</strong>
         </div>
         <div>
-          <span>Ventana</span>
-          <strong>{oldestPoint ? `${formatDateLabel(oldestPoint.date)} - ${formatDateLabel(latestPoint.date)}` : "Sin datos"}</strong>
+          <span>{fundCard.window}</span>
+          <strong>
+            {oldestPoint
+              ? `${formatDateLabel(oldestPoint.date, language)} - ${formatDateLabel(latestPoint.date, language)}`
+              : fundCard.noData}
+          </strong>
         </div>
         <div>
-          <span>Variación</span>
+          <span>{fundCard.variation}</span>
           <strong className={change && change.absolute < 0 ? "negative" : "positive"}>
-            {change ? `${change.absolute >= 0 ? "+" : ""}${formatPrice(change.absolute, fund.currency)}${change.percent != null ? ` (${change.percent.toFixed(2)}%)` : ""}` : "N/D"}
+            {change
+              ? `${change.absolute >= 0 ? "+" : ""}${formatPrice(change.absolute, fund.currency, language)}${change.percent != null ? ` (${formatPercent(change.percent, 2, language)})` : ""}`
+              : fundCard.noData}
           </strong>
         </div>
       </div>
@@ -82,7 +98,7 @@ export default function FundCard({ fund, rangeKey, loading, currencyOptions, onC
               <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis
                 dataKey="date"
-                tickFormatter={formatCompactDate}
+                tickFormatter={(value) => formatCompactDate(value, language)}
                 tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
@@ -102,8 +118,8 @@ export default function FundCard({ fund, rangeKey, loading, currencyOptions, onC
                   borderRadius: "8px",
                   fontSize: "0.82rem",
                 }}
-                labelFormatter={formatDateLabel}
-                formatter={(value) => [formatPrice(value, fund.currency), "Valor liquidativo"]}
+                labelFormatter={(value) => formatDateLabel(value, language)}
+                formatter={(value) => [formatPrice(value, fund.currency, language), fundCard.navLabel]}
               />
               <Line
                 type="monotone"
@@ -116,7 +132,7 @@ export default function FundCard({ fund, rangeKey, loading, currencyOptions, onC
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="empty-chart">No hay datos para la ventana temporal seleccionada.</div>
+          <div className="empty-chart">{fundCard.noWindowData}</div>
         )}
       </div>
 
@@ -124,7 +140,7 @@ export default function FundCard({ fund, rangeKey, loading, currencyOptions, onC
         <div className="loading-overlay loading-overlay--compact" aria-live="polite" aria-busy="true">
           <div className="loading-overlay__badge">
             <span className="loading-overlay__spinner" aria-hidden="true" />
-            Actualizando datos...
+            {fundCard.updating}
           </div>
         </div>
       ) : null}

@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { promisify } from "node:util";
+import { getI18n, normalizeLanguage, resolveRequestLanguage } from "../../../lib/i18n";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,6 +18,8 @@ function getPythonExecutable() {
 }
 
 async function forwardToPythonFunction(request, body) {
+  const language = normalizeLanguage(body?.language ?? resolveRequestLanguage(request.headers.get("accept-language")));
+  const { api } = getI18n(language);
   const endpoint = new URL("/api/funds_backend", request.url);
   const response = await fetch(endpoint, {
     method: "POST",
@@ -35,7 +38,7 @@ async function forwardToPythonFunction(request, body) {
   } catch {
     return Response.json(
       {
-        error: "La funcion Python devolvio una respuesta no valida.",
+        error: api.invalidPythonResponse,
         details: rawResponse.slice(0, 500),
       },
       { status: 502 }
@@ -64,8 +67,12 @@ async function runLocalPython(body) {
 }
 
 export async function POST(request) {
+  let api = getI18n("en").api;
+
   try {
     const body = await request.json();
+    const language = normalizeLanguage(body?.language ?? resolveRequestLanguage(request.headers.get("accept-language")));
+    api = getI18n(language).api;
 
     if (process.env.VERCEL === "1") {
       return await forwardToPythonFunction(request, body);
@@ -76,7 +83,7 @@ export async function POST(request) {
     const message =
       error?.stderr?.toString?.().trim() ||
       error?.message ||
-      "No se pudo obtener el histórico de los fondos.";
+      api.historyFetchFailed;
 
     return Response.json({ error: message }, { status: 500 });
   }

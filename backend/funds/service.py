@@ -13,6 +13,7 @@ def get_fund_snapshot(
     start_date: str = DEFAULT_START_DATE,
     currency: str = DEFAULT_CURRENCY,
     frequency: str = DEFAULT_FREQUENCY,
+    language: str = "en",
 ) -> FundSnapshot:
     normalized_isin = normalize_isin(isin)
 
@@ -21,6 +22,7 @@ def get_fund_snapshot(
         start_date=start_date,
         currency=currency,
         frequency=frequency,
+        language=language,
     )
 
     latest_date = None

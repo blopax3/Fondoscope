@@ -1,4 +1,8 @@
-export default function ViewSwitcher({ activeView, onChange }) {
+import { getI18n } from "../../lib/i18n";
+
+export default function ViewSwitcher({ language = "en", activeView, onChange }) {
+  const { viewSwitcher } = getI18n(language);
+
   return (
     <div className="view-switcher">
       <button
@@ -6,14 +10,14 @@ export default function ViewSwitcher({ activeView, onChange }) {
         className={activeView === "cards" ? "view-switcher__button active" : "view-switcher__button"}
         onClick={() => onChange("cards")}
       >
-        Vista por fondo
+        {viewSwitcher.cards}
       </button>
       <button
         type="button"
         className={activeView === "compare" ? "view-switcher__button active" : "view-switcher__button"}
         onClick={() => onChange("compare")}
       >
-        Comparar fondos
+        {viewSwitcher.compare}
       </button>
     </div>
   );

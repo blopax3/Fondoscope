@@ -1,5 +1,7 @@
+import { headers } from "next/headers";
 import { Instrument_Serif, JetBrains_Mono, Outfit } from "next/font/google";
 import "./globals.css";
+import { getI18n, resolveRequestLanguage } from "../lib/i18n";
 
 const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
@@ -21,14 +23,24 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-export const metadata = {
-  title: "Fondoscope",
-  description: "Histórico interactivo de fondos de inversión por ISIN",
-};
+export async function generateMetadata() {
+  const requestHeaders = await headers();
+  const language = resolveRequestLanguage(requestHeaders.get("accept-language"));
+  const { metadataDescription } = getI18n(language);
 
-export default function RootLayout({ children }) {
+  return {
+    title: "Fondoscope",
+    description: metadataDescription,
+  };
+}
+
+export default async function RootLayout({ children }) {
+  const requestHeaders = await headers();
+  const language = resolveRequestLanguage(requestHeaders.get("accept-language"));
+  const { htmlLang } = getI18n(language);
+
   return (
-    <html lang="es" className={`${instrumentSerif.variable} ${outfit.variable} ${jetbrainsMono.variable}`}>
+    <html lang={htmlLang} className={`${instrumentSerif.variable} ${outfit.variable} ${jetbrainsMono.variable}`}>
       <body>{children}</body>
     </html>
   );

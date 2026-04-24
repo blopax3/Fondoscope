@@ -14,6 +14,32 @@ class MorningstarScraperError(Exception):
     pass
 
 
+def normalize_language(language: str) -> str:
+    return "es" if isinstance(language, str) and language.lower().startswith("es") else "en"
+
+
+def translate(language: str, key: str, **kwargs: object) -> str:
+    messages = {
+        "en": {
+            "search_no_results": "No results were found in SecuritySearch.ashx for ISIN {isin}",
+            "unexpected_structure": "Unexpected structure in the Morningstar response for id={secid}: {payload}",
+            "missing_columns": "EndDate/Value columns were not found in HistoryDetail: {columns}",
+            "empty_history": "{id_kind}={candidate_id} universe={universe} -> empty history",
+            "history_not_found": "Could not retrieve history with any of the tested IDs/universes.\n{details}",
+        },
+        "es": {
+            "search_no_results": "No se encontraron resultados en SecuritySearch.ashx para el ISIN {isin}",
+            "unexpected_structure": "Estructura inesperada en la respuesta de Morningstar para id={secid}: {payload}",
+            "missing_columns": "No se encontraron columnas EndDate/Value en HistoryDetail: {columns}",
+            "empty_history": "{id_kind}={candidate_id} universe={universe} -> histórico vacío",
+            "history_not_found": "No pude obtener histórico con ninguno de los IDs/universos probados.\n{details}",
+        },
+    }
+
+    selected_language = normalize_language(language)
+    return messages[selected_language][key].format(**kwargs)
+
+
 def normalize_isin(isin: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", isin).upper()
 
@@ -44,7 +70,7 @@ def _parse_security_search_response(text: str) -> list[SearchCandidate]:
     return results
 
 
-def search_candidates(isin: str, timeout: int = 20) -> list[SearchCandidate]:
+def search_candidates(isin: str, timeout: int = 20, language: str = "en") -> list[SearchCandidate]:
     normalized_isin = normalize_isin(isin)
     url = "https://www.morningstar.es/es/util/SecuritySearch.ashx"
     session = _session()
@@ -63,7 +89,7 @@ def search_candidates(isin: str, timeout: int = 20) -> list[SearchCandidate]:
             continue
 
     raise MorningstarScraperError(
-        f"No se encontraron resultados en SecuritySearch.ashx para el ISIN {normalized_isin}"
+        translate(language, "search_no_results", isin=normalized_isin)
     )
 
 
@@ -75,6 +101,7 @@ def fetch_history_by_id(
     frequency: str,
     universe: str,
     timeout: int = 30,
+    language: str = "en",
 ) -> pd.DataFrame:
     url = "https://tools.morningstar.es/api/rest.svc/timeseries_price/t92wz0sj7c"
     params = {
@@ -95,7 +122,7 @@ def fetch_history_by_id(
         history = payload["TimeSeries"]["Security"][0]["HistoryDetail"]
     except (KeyError, IndexError, TypeError) as error:
         raise MorningstarScraperError(
-            f"Estructura inesperada en la respuesta de Morningstar para id={secid}: {payload}"
+            translate(language, "unexpected_structure", secid=secid, payload=payload)
         ) from error
 
     if not history:
@@ -104,7 +131,7 @@ def fetch_history_by_id(
     dataframe = pd.DataFrame(history)
     if "EndDate" not in dataframe.columns or "Value" not in dataframe.columns:
         raise MorningstarScraperError(
-            f"No se encontraron columnas EndDate/Value en HistoryDetail: {dataframe.columns.tolist()}"
+            translate(language, "missing_columns", columns=dataframe.columns.tolist())
         )
 
     dataframe = dataframe.rename(columns={"EndDate": "date", "Value": "price"})
@@ -126,8 +153,9 @@ def resolve_history(
     currency: str,
     frequency: str,
     universes: tuple[str, ...] = DEFAULT_UNIVERSES,
+    language: str = "en",
 ) -> tuple[str, pd.DataFrame, dict[str, str]]:
-    candidates = search_candidates(isin)
+    candidates = search_candidates(isin, language=language)
     errors: list[str] = []
 
     for candidate in candidates:
@@ -140,13 +168,22 @@ def resolve_history(
                         currency=currency,
                         frequency=frequency,
                         universe=universe,
+                        language=language,
                     )
                 except Exception as error:
                     errors.append(f"{id_kind}={candidate_id} universe={universe} -> {error}")
                     continue
 
                 if history.empty:
-                    errors.append(f"{id_kind}={candidate_id} universe={universe} -> histórico vacío")
+                    errors.append(
+                        translate(
+                            language,
+                            "empty_history",
+                            id_kind=id_kind,
+                            candidate_id=candidate_id,
+                            universe=universe,
+                        )
+                    )
                     continue
 
                 return candidate.name or normalize_isin(isin), history, {
@@ -156,6 +193,5 @@ def resolve_history(
                 }
 
     raise MorningstarScraperError(
-        "No pude obtener histórico con ninguno de los IDs/universos probados.\n"
-        + "\n".join(errors)
+        translate(language, "history_not_found", details="\n".join(errors))
     )

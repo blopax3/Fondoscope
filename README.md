@@ -1,99 +1,43 @@
 # Fondoscope
 
-Fondoscope es una aplicación para consultar y comparar fondos de inversión a partir de su ISIN.
+Fondoscope is a web app for looking up and comparing investment funds by ISIN.
 
-La idea es simple: introduces uno o varios fondos, eliges la divisa de cada uno y obtienes una vista clara de su evolución histórica, su comportamiento relativo y sus métricas principales.
+Paste one or more ISINs, choose a currency for each fund, and review their historical performance in cards, charts, comparison tables, and correlation views.
 
-## Demo online
+## Live Demo
 
-La aplicación está desplegada en Vercel y puede probarse aquí:
+https://fondoscope-plum.vercel.app/
 
-[https://fondoscope-plum.vercel.app/](https://fondoscope-plum.vercel.app/)
+## Preview
 
-## Ejemplo de la interfaz
+![Fondoscope example](./docs/images/screenshot.png)
 
-![Ejemplo de Fondoscope](./example.png)
+## What It Does
 
-Vista de ejemplo de la web comparando dos fondos, con gráfico de evolución y tabla comparativa de métricas.
+- Loads multiple funds from ISIN codes
+- Lets you assign a different currency to each fund
+- Compares performance across common time ranges
+- Shows per-fund cards, an overlay chart, a comparison table, and a correlation matrix
+- Highlights unresolved funds or data retrieval errors
 
-## Qué puede hacer la aplicación
+## Tech Stack
 
-- comparar varios fondos al mismo tiempo
-- cargar fondos por ISIN de forma rápida
-- asignar una divisa distinta a cada fondo
-- visualizar la evolución en un gráfico comparativo
-- alternar entre vista visual y tabla comparativa
-- analizar distintos periodos: `1M`, `6M`, `1Y`, `3Y`, `5Y`, `YTD` y `MAX`
-- consultar métricas de rentabilidad y riesgo
-- revisar incidencias o fondos que no se hayan podido resolver correctamente
+- Next.js
+- React
+- Recharts
+- Python
+- pandas
+- requests
 
-## Qué ve el usuario
+## Local Development
 
-La aplicación está pensada para que la comparación sea inmediata y fácil de leer.
+Requirements:
 
-### Entrada de fondos
-
-El usuario puede pegar varios ISIN:
-
-- uno por línea
-- separados por comas
-- separados por espacios
-
-La app detecta los ISIN automáticamente y genera una lista editable donde se puede:
-
-- cambiar la divisa de cada fondo
-- eliminar fondos antes de lanzar la consulta
-
-### Visualización comparativa
-
-Una vez cargados los datos, la aplicación muestra:
-
-- gráfico de comparación entre fondos
-- tarjetas individuales con información resumida
-- tabla comparativa con métricas del periodo seleccionado
-
-### Métricas principales
-
-Entre las métricas que se muestran están:
-
-- rentabilidad acumulada
-- rentabilidad anualizada
-- volatilidad anualizada
-- máximo drawdown
-- recuperación del drawdown
-- ratio retorno/volatilidad
-- observaciones disponibles
-- antigüedad del histórico
-
-## Para quién está pensada
-
-Puede resultar útil para:
-
-- inversores particulares que comparan varios fondos
-- analistas que quieren una vista rápida por ISIN
-- usuarios que necesitan revisar fondos en distintas divisas
-
-## Cómo se usa
-
-1. Introduce uno o varios ISIN.
-2. Ajusta la divisa de cada fondo si lo necesitas.
-3. Pulsa en consultar.
-4. Cambia el rango temporal para comparar el comportamiento en distintos horizontes.
-5. Alterna entre gráfico, tarjetas y tabla para analizar los resultados.
-
-## Fuente de datos
-
-La aplicación obtiene históricos y metadatos a partir de endpoints públicos de Morningstar.
-
-## Desarrollo local
-
-### Requisitos
-
-- Node.js 20 o superior recomendado
+- Node.js 20+
 - Python 3.13
-- `npm`
+- npm
 
-### Instalación
+Install dependencies:
 
 ```bash
 npm install
@@ -102,34 +46,20 @@ python3 -m venv .venv
 pip install pandas requests
 ```
 
-### Arranque
+Start the app:
 
 ```bash
 npm run dev
 ```
 
-La aplicación quedará disponible normalmente en `http://localhost:3000`.
+The app is usually available at `http://localhost:3000`.
 
-### Verificacion
+Validate the project:
 
 ```bash
 npm run check
 ```
 
-Este comando ejecuta `next lint` y despues `next build` para validar la aplicacion antes de desplegarla.
+## Data Source
 
-## Despliegue
-
-El proyecto está desplegado en Vercel.
-
-La arquitectura actual mantiene el mismo endpoint público para el frontend y utiliza Python para la obtención de datos en producción.
-
-## Stack técnico
-
-- Next.js
-- React
-- Recharts
-- Python
-- pandas
-- requests
-- Vercel
+Fondoscope retrieves fund metadata and historical series from public Morningstar endpoints.

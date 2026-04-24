@@ -2,9 +2,14 @@
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { buildComparisonMetrics, getFundDisplayName } from "../../lib/fund-data";
+import { getI18n } from "../../lib/i18n";
 
-function ComparisonTable({ funds, rangeKey }) {
-  const metrics = useMemo(() => buildComparisonMetrics(funds, rangeKey), [funds, rangeKey]);
+function ComparisonTable({ language = "en", funds, rangeKey }) {
+  const { comparisonTable } = getI18n(language);
+  const metrics = useMemo(
+    () => buildComparisonMetrics(funds, rangeKey, language),
+    [funds, language, rangeKey]
+  );
   const scrollerRef = useRef(null);
   const [isHorizontallyScrolled, setIsHorizontallyScrolled] = useState(false);
 
@@ -36,7 +41,7 @@ function ComparisonTable({ funds, rangeKey }) {
   return (
     <section className="comparison-table-panel">
       <div className="comparison-table-panel__header">
-        <p className="fund-card__eyebrow">Tabla comparativa</p>
+        <p className="fund-card__eyebrow">{comparisonTable.eyebrow}</p>
       </div>
 
       <div
@@ -47,7 +52,7 @@ function ComparisonTable({ funds, rangeKey }) {
         <table className="comparison-table">
           <thead>
             <tr>
-              <th>Métrica</th>
+              <th>{comparisonTable.metric}</th>
               {funds.map((fund) => (
                 <th key={fund.isin}>{getFundDisplayName(fund)}</th>
               ))}

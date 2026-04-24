@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 
+from .morningstar_client import normalize_language
 from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
 
 
@@ -50,6 +51,7 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
 
 
 def build_response(payload: dict[str, object]) -> dict[str, object]:
+    language = normalize_language(str(payload.get("language", "en")))
     start_date = payload.get("startDate", "2000-01-01")
     start_date = start_date if isinstance(start_date, str) else "2000-01-01"
     frequency = payload.get("frequency", "daily")
@@ -57,7 +59,11 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
     entries = normalize_entries(payload)
 
     if not entries:
-        raise ValueError("Debes indicar al menos un ISIN.")
+        raise ValueError(
+            "Debes indicar al menos un ISIN."
+            if language == "es"
+            else "You must provide at least one ISIN."
+        )
 
     funds = []
     errors = []
@@ -74,6 +80,7 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
                 start_date=start_date,
                 currency=currency,
                 frequency=frequency,
+                language=language,
             )
             result = serialize_snapshot(snapshot)
             result["currency"] = currency

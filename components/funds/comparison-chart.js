@@ -21,8 +21,17 @@ import {
   FUND_COLORS,
   getFundDisplayName,
 } from "../../lib/fund-data";
+import { getI18n } from "../../lib/i18n";
 
-export default function ComparisonChart({ funds, selectedFunds, rangeKey, loading, onToggleFund }) {
+export default function ComparisonChart({
+  language = "en",
+  funds,
+  selectedFunds,
+  rangeKey,
+  loading,
+  onToggleFund,
+}) {
+  const { comparisonChart } = getI18n(language);
   const selectedFundsSet = useMemo(() => new Set(selectedFunds), [selectedFunds]);
   const visibleFunds = useMemo(
     () => funds.filter((fund) => selectedFundsSet.has(fund.isin)),
@@ -37,9 +46,9 @@ export default function ComparisonChart({ funds, selectedFunds, rangeKey, loadin
     <section className={loading ? "comparison-panel comparison-panel--loading" : "comparison-panel"}>
       <div className="comparison-panel__header">
         <div>
-          <p className="fund-card__eyebrow">Comparador</p>
+          <p className="fund-card__eyebrow">{comparisonChart.eyebrow}</p>
           <p className="comparison-panel__lede">
-            Selecciona los fondos que quieres superponer. Cada línea muestra la variación porcentual acumulada desde el inicio del rango activo.
+            {comparisonChart.lede}
           </p>
         </div>
         <div className="comparison-panel__range">{rangeKey}</div>
@@ -77,7 +86,7 @@ export default function ComparisonChart({ funds, selectedFunds, rangeKey, loadin
               <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
               <XAxis
                 dataKey="date"
-                tickFormatter={formatCompactDate}
+                tickFormatter={(value) => formatCompactDate(value, language)}
                 tick={{ fill: "rgba(226,221,213,0.74)", fontSize: 12, fontFamily: "var(--font-mono)" }}
                 axisLine={false}
                 tickLine={false}
@@ -88,7 +97,7 @@ export default function ComparisonChart({ funds, selectedFunds, rangeKey, loadin
                 padding={{ left: 8, right: 8 }}
               />
               <YAxis
-                tickFormatter={(value) => formatPercent(value, 0)}
+                tickFormatter={(value) => formatPercent(value, 0, language)}
                 tick={{ fill: "rgba(226,221,213,0.74)", fontSize: 12, fontFamily: "var(--font-mono)" }}
                 axisLine={false}
                 tickLine={false}
@@ -103,8 +112,8 @@ export default function ComparisonChart({ funds, selectedFunds, rangeKey, loadin
                   fontFamily: "var(--font-body)",
                   fontSize: "0.82rem",
                 }}
-                labelFormatter={formatDateLabel}
-                formatter={(value, name) => [formatPercent(Number(value)), name]}
+                labelFormatter={(value) => formatDateLabel(value, language)}
+                formatter={(value, name) => [formatPercent(Number(value), 2, language), name]}
               />
               <Legend
                 wrapperStyle={{
@@ -132,20 +141,20 @@ export default function ComparisonChart({ funds, selectedFunds, rangeKey, loadin
           </ResponsiveContainer>
         ) : (
           <div className="empty-chart">
-            Selecciona al menos un fondo con datos para mostrar la comparativa.
+            {comparisonChart.empty}
           </div>
         )}
       </div>
 
-      {visibleFunds.length ? <ComparisonTable funds={visibleFunds} rangeKey={rangeKey} /> : null}
+      {visibleFunds.length ? <ComparisonTable language={language} funds={visibleFunds} rangeKey={rangeKey} /> : null}
 
-      {visibleFunds.length ? <CorrelationMatrix funds={visibleFunds} rangeKey={rangeKey} /> : null}
+      {visibleFunds.length ? <CorrelationMatrix language={language} funds={visibleFunds} rangeKey={rangeKey} /> : null}
 
       {loading ? (
         <div className="loading-overlay" aria-live="polite" aria-busy="true">
           <div className="loading-overlay__badge">
             <span className="loading-overlay__spinner" aria-hidden="true" />
-            Actualizando comparador...
+            {comparisonChart.updating}
           </div>
         </div>
       ) : null}

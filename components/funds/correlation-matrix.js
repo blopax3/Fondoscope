@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { buildCorrelationMatrix, getFundDisplayName } from "../../lib/fund-data";
+import { getI18n, getIntlLocale } from "../../lib/i18n";
 
 const CORRELATION_TONES = {
   negative: [34, 74, 132],
@@ -20,12 +21,12 @@ function normalizeDisplayedCorrelation(value) {
   return Math.abs(value) < 0.005 ? 0 : value;
 }
 
-function formatCorrelation(value) {
+function formatCorrelation(value, language = "en", fallback = "N/A") {
   if (!Number.isFinite(value)) {
-    return "N/D";
+    return fallback;
   }
 
-  return new Intl.NumberFormat("es-ES", {
+  return new Intl.NumberFormat(getIntlLocale(language), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
     signDisplay: "exceptZero",
@@ -50,34 +51,34 @@ function getRelativeLuminance([red, green, blue]) {
   return ((0.2126 * red) + (0.7152 * green) + (0.0722 * blue)) / 255;
 }
 
-function getCorrelationDescriptor(value, isDiagonal) {
+function getCorrelationDescriptor(value, isDiagonal, copy) {
   if (!Number.isFinite(value)) {
-    return "sin datos suficientes";
+    return copy.insufficientData;
   }
 
   if (isDiagonal) {
-    return "autocorrelacion";
+    return copy.autocorrelation;
   }
 
   const strength = Math.abs(value);
 
   if (strength < 0.1) {
-    return "casi nula";
+    return copy.almostNull;
   }
 
   if (strength < 0.3) {
-    return value > 0 ? "positiva debil" : "negativa debil";
+    return value > 0 ? copy.weakPositive : copy.weakNegative;
   }
 
   if (strength < 0.6) {
-    return value > 0 ? "positiva moderada" : "negativa moderada";
+    return value > 0 ? copy.moderatePositive : copy.moderateNegative;
   }
 
   if (strength < 0.85) {
-    return value > 0 ? "positiva fuerte" : "negativa fuerte";
+    return value > 0 ? copy.strongPositive : copy.strongNegative;
   }
 
-  return value > 0 ? "positiva muy fuerte" : "negativa muy fuerte";
+  return value > 0 ? copy.veryStrongPositive : copy.veryStrongNegative;
 }
 
 function getCorrelationCellStyle(value, isDiagonal) {
@@ -112,19 +113,20 @@ function getCorrelationCellStyle(value, isDiagonal) {
   };
 }
 
-function getCorrelationTitle(rowFund, columnFund, cell, isDiagonal) {
+function getCorrelationTitle(rowFund, columnFund, cell, isDiagonal, language, copy) {
   const label = `${getFundDisplayName(rowFund)} vs ${getFundDisplayName(columnFund)}`;
 
   if (!Number.isFinite(cell.value)) {
     return cell.intervalCount > 0
-      ? `${label}: N/D (${cell.intervalCount} intervalos compartidos)`
-      : `${label}: N/D`;
+      ? `${label}: ${copy.noData} (${copy.sharedIntervals(cell.intervalCount)})`
+      : `${label}: ${copy.noData}`;
   }
 
-  return `${label}: ${formatCorrelation(cell.value)} | ${getCorrelationDescriptor(cell.value, isDiagonal)} (${cell.intervalCount} intervalos compartidos)`;
+  return `${label}: ${formatCorrelation(cell.value, language, copy.noData)} | ${getCorrelationDescriptor(cell.value, isDiagonal, copy)} (${copy.sharedIntervals(cell.intervalCount)})`;
 }
 
-function CorrelationMatrix({ funds, rangeKey }) {
+function CorrelationMatrix({ language = "en", funds, rangeKey }) {
+  const { correlation } = getI18n(language);
   const matrix = useMemo(() => buildCorrelationMatrix(funds, rangeKey), [funds, rangeKey]);
   const scrollerRef = useRef(null);
   const [isHorizontallyScrolled, setIsHorizontallyScrolled] = useState(false);
@@ -170,14 +172,14 @@ function CorrelationMatrix({ funds, rangeKey }) {
     <section className="correlation-matrix-panel">
       <div className="correlation-matrix-panel__header">
         <div>
-          <p className="fund-card__eyebrow">Correlacion</p>
+          <p className="fund-card__eyebrow">{correlation.eyebrow}</p>
         </div>
 
         <div className="correlation-matrix-panel__legend" aria-hidden="true">
           <div className="correlation-matrix-panel__legend-headings">
-            <span>Negativa</span>
-            <span>Neutra</span>
-            <span>Positiva</span>
+            <span>{correlation.negative}</span>
+            <span>{correlation.neutral}</span>
+            <span>{correlation.positive}</span>
           </div>
           <span className="correlation-matrix-panel__legend-scale" />
           <div className="correlation-matrix-panel__legend-labels">
@@ -196,7 +198,7 @@ function CorrelationMatrix({ funds, rangeKey }) {
         <table className="correlation-matrix">
           <thead>
             <tr>
-              <th scope="col">Fondo</th>
+              <th scope="col">{correlation.fund}</th>
               {matrix.funds.map((fund) => (
                 <th
                   key={fund.isin}
@@ -237,7 +239,14 @@ function CorrelationMatrix({ funds, rangeKey }) {
                     const isColumnHighlighted = highlightedColumnIsin === columnFund.isin;
                     const isHighlighted = isRowHighlighted || isColumnHighlighted;
                     const isActiveCell = isRowHighlighted && isColumnHighlighted;
-                    const cellTitle = getCorrelationTitle(row.fund, columnFund, cell, isDiagonal);
+                    const cellTitle = getCorrelationTitle(
+                      row.fund,
+                      columnFund,
+                      cell,
+                      isDiagonal,
+                      language,
+                      correlation
+                    );
 
                     return (
                       <td
@@ -260,7 +269,7 @@ function CorrelationMatrix({ funds, rangeKey }) {
                           title={cellTitle}
                           aria-label={cellTitle}
                         >
-                          {formatCorrelation(cell.value)}
+                          {formatCorrelation(cell.value, language, correlation.noData)}
                         </span>
                       </td>
                     );

@@ -1,14 +1,17 @@
 "use client";
 
-export default function LoadingState({ variant = "cards" }) {
+import { getI18n } from "../../lib/i18n";
+
+export default function LoadingState({ language = "en", variant = "cards" }) {
+  const { loadingState } = getI18n(language);
   const itemCount = variant === "compare" ? 6 : 3;
 
   return (
     <section className="loading-panel" aria-live="polite" aria-busy="true">
       <div className="loading-panel__header">
-        <p className="fund-card__eyebrow">Cargando</p>
+        <p className="fund-card__eyebrow">{loadingState.eyebrow}</p>
         <p className="loading-panel__lede">
-          Estamos preparando los datos historicos para esta vista. En cuanto lleguen, la interfaz se completa sola.
+          {loadingState.lede}
         </p>
       </div>
 
