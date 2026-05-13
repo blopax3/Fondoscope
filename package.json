@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Interactive fund history viewer for investment funds by ISIN",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "next dev",
     "dev:next": "next dev",
@@ -10,7 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "check": "npm run lint && next build --no-lint"
+    "check": "pnpm run lint && next build --no-lint"
   },
   "keywords": [],
   "author": "",

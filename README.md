@@ -35,12 +35,12 @@ Requirements:
 
 - Node.js 20+
 - Python 3.13
-- npm
+- pnpm 9
 
 Install dependencies:
 
 ```bash
-npm install
+pnpm install
 python3 -m venv .venv
 . .venv/bin/activate
 pip install pandas requests
@@ -49,7 +49,7 @@ pip install pandas requests
 Start the app:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 The app is usually available at `http://localhost:3000`.
@@ -57,7 +57,7 @@ The app is usually available at `http://localhost:3000`.
 Validate the project:
 
 ```bash
-npm run check
+pnpm run check
 ```
 
 ## Data Source
