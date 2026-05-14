@@ -6,7 +6,8 @@ import FundCard from "./funds/fund-card";
 import LoadingState from "./funds/loading-state";
 import RangeSelector from "./funds/range-selector";
 import ViewSwitcher from "./funds/view-switcher";
-import { fetchFunds, MAX_FUND_ENTRIES, parseIsins } from "../lib/fund-data";
+import { useSavedPortfolios } from "./use-saved-portfolios";
+import { fetchFunds, MAX_FUND_ENTRIES, parseIsins, RANGE_OPTIONS } from "../lib/fund-data";
 import { getI18n } from "../lib/i18n";
 
 const CURRENCY_OPTIONS = [
@@ -22,6 +23,23 @@ const CURRENCY_OPTIONS = [
   { value: "AUD", label: "AUD" },
 ];
 
+function buildEntriesFromQuery(query) {
+  const isins = parseIsins(query.get("isins") || "", MAX_FUND_ENTRIES);
+  const currencies = (query.get("currencies") || "")
+    .split(",")
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+
+  return isins.map((isin, index) => ({
+    isin,
+    currency: currencies[index] || "EUR",
+  }));
+}
+
+function normalizeRange(value) {
+  return RANGE_OPTIONS.some((option) => option.key === value) ? value : "1Y";
+}
+
 export default function FundDashboard({ language = "en" }) {
   const { dashboard } = getI18n(language);
   const [inputValue, setInputValue] = useState("");
@@ -35,10 +53,12 @@ export default function FundDashboard({ language = "en" }) {
   const [loading, setLoading] = useState(false);
   const [reloadingIsin, setReloadingIsin] = useState(null);
   const debounceRef = useRef(null);
+  const initializedFromUrl = useRef(false);
+  const portfolioNameInputRef = useRef(null);
+  const { portfolios, savePortfolio, removePortfolio } = useSavedPortfolios();
   const totalInputFunds = useMemo(() => parseIsins(inputValue).length, [inputValue]);
   const overflowFundsCount = Math.max(totalInputFunds - MAX_FUND_ENTRIES, 0);
 
-  // Auto-parse ISINs from textarea with debounce
   const syncEntries = useCallback((text) => {
     const isins = parseIsins(text, MAX_FUND_ENTRIES);
     setFundEntries((current) => {
@@ -49,16 +69,6 @@ export default function FundDashboard({ language = "en" }) {
       }));
     });
   }, []);
-
-  useEffect(() => {
-    clearTimeout(debounceRef.current);
-    if (!inputValue.trim()) {
-      setFundEntries([]);
-      return;
-    }
-    debounceRef.current = setTimeout(() => syncEntries(inputValue), 300);
-    return () => clearTimeout(debounceRef.current);
-  }, [inputValue, syncEntries]);
 
   function handleCurrencyChange(isin, currency) {
     setFundEntries((current) =>
@@ -76,7 +86,7 @@ export default function FundDashboard({ language = "en" }) {
     });
   }
 
-  async function loadFunds(entries) {
+  const loadFunds = useCallback(async (entries) => {
     setLoading(true);
     setRequestError("");
 
@@ -93,7 +103,53 @@ export default function FundDashboard({ language = "en" }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [dashboard.loadError, language]);
+
+  useEffect(() => {
+    if (initializedFromUrl.current) {
+      return;
+    }
+
+    initializedFromUrl.current = true;
+    const query = new URLSearchParams(window.location.search);
+    const entriesFromQuery = buildEntriesFromQuery(query);
+    const queryRange = normalizeRange(query.get("range") || "1Y");
+    setRangeKey(queryRange);
+
+    if (entriesFromQuery.length) {
+      setFundEntries(entriesFromQuery);
+      setInputValue(entriesFromQuery.map((entry) => entry.isin).join("\n"));
+      loadFunds(entriesFromQuery);
+    }
+  }, [loadFunds]);
+
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    if (!inputValue.trim()) {
+      setFundEntries([]);
+      return;
+    }
+    debounceRef.current = setTimeout(() => syncEntries(inputValue), 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [inputValue, syncEntries]);
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+
+    if (fundEntries.length) {
+      query.set("isins", fundEntries.map((entry) => entry.isin).join(","));
+      query.set("currencies", fundEntries.map((entry) => entry.currency).join(","));
+      query.set("range", rangeKey);
+    } else {
+      query.delete("isins");
+      query.delete("currencies");
+      query.delete("range");
+    }
+
+    const next = query.toString();
+    const pathname = window.location.pathname;
+    window.history.replaceState({}, "", next ? `${pathname}?${next}` : pathname);
+  }, [fundEntries, rangeKey]);
 
   async function reloadFund(isin, currency) {
     setReloadingIsin(isin);
@@ -119,13 +175,52 @@ export default function FundDashboard({ language = "en" }) {
   }
 
   function handleFundCurrencyChange(isin, currency) {
-    // Update the entry in the pre-load list too
     setFundEntries((current) =>
       current.map((entry) =>
         entry.isin === isin ? { ...entry, currency } : entry
       )
     );
     reloadFund(isin, currency);
+  }
+
+  function handleSaveComparison() {
+    if (!fundEntries.length) {
+      setRequestError(dashboard.missingIsin);
+      return;
+    }
+
+    const fallbackName = `${dashboard.defaultPortfolioName} ${new Date().toLocaleDateString()}`;
+    const rawPortfolioName = portfolioNameInputRef.current?.value || "";
+    const targetName = rawPortfolioName.trim() || fallbackName;
+    const saved = savePortfolio(targetName, fundEntries);
+
+    if (!saved) {
+      setRequestError(dashboard.portfolioSaveError);
+      return;
+    }
+
+    if (portfolioNameInputRef.current) {
+      portfolioNameInputRef.current.value = "";
+    }
+    setRequestError("");
+  }
+
+  function handleQuickLoadPortfolio(id) {
+    const selected = portfolios.find((portfolio) => portfolio.id === id);
+    if (!selected) {
+      setRequestError(dashboard.portfolioMissingSelection);
+      return;
+    }
+
+    setFundEntries(selected.entries);
+    setInputValue(selected.entries.map((entry) => entry.isin).join("\n"));
+    loadFunds(selected.entries);
+    setRequestError("");
+  }
+
+  function handleDeletePortfolio(id) {
+    removePortfolio(id);
+    setRequestError("");
   }
 
   const stats = useMemo(() => {
@@ -139,7 +234,6 @@ export default function FundDashboard({ language = "en" }) {
   const showLoadingState = loading && !funds.length && !requestError;
   const hasResults = funds.length > 0;
 
-  // Map ISIN -> fund name from loaded funds
   const fundNameMap = useMemo(() => {
     const map = new Map();
     for (const fund of funds) {
@@ -219,6 +313,58 @@ export default function FundDashboard({ language = "en" }) {
               })}
             </div>
           )}
+
+          <div className="portfolio-controls" aria-label={dashboard.portfolioSectionLabel}>
+            <div className="portfolio-controls__header">
+              <span>{dashboard.portfolioSectionLabel}</span>
+              {portfolios.length ? <span>{dashboard.savedPortfoliosCount(portfolios.length)}</span> : null}
+            </div>
+
+            <div className="portfolio-controls__bar">
+              <div className="portfolio-inline-group">
+                <input
+                  ref={portfolioNameInputRef}
+                  className="portfolio-controls__name"
+                  type="text"
+                  placeholder={dashboard.portfolioNamePlaceholder}
+                />
+                <button type="button" className="btn btn--secondary" onClick={handleSaveComparison}>
+                  {dashboard.saveComparisonButton}
+                </button>
+              </div>
+            </div>
+
+            <div className="portfolio-list" data-empty={portfolios.length ? "false" : "true"}>
+              {portfolios.length ? (
+                portfolios.map((portfolio) => (
+                  <div key={portfolio.id} className="portfolio-item">
+                    <button
+                      type="button"
+                      className="portfolio-item__meta"
+                      onClick={() => handleQuickLoadPortfolio(portfolio.id)}
+                      title={dashboard.loadPortfolioButton}
+                    >
+                      <span className="portfolio-item__name">{portfolio.name}</span>
+                      <span className="portfolio-item__count">
+                        {dashboard.portfolioFundCount(portfolio.entries.length)}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="portfolio-item__delete"
+                      onClick={() => handleDeletePortfolio(portfolio.id)}
+                      title={dashboard.deletePortfolioButton}
+                      aria-label={`${dashboard.deletePortfolioButton}: ${portfolio.name}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="portfolio-list__empty">{dashboard.portfolioListEmpty}</p>
+              )}
+            </div>
+          </div>
 
           <div className="input-bar__actions">
             <p className="input-bar__hint">

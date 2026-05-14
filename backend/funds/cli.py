@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 
+from .cache import get_cached_fund_response, set_cached_fund_response
 from .morningstar_client import normalize_language
 from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
 
@@ -75,6 +76,17 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
             continue
 
         try:
+            cached_result = get_cached_fund_response(
+                isin=isin,
+                currency=currency,
+                start_date=start_date,
+                frequency=frequency,
+                language=language,
+            )
+            if cached_result is not None:
+                funds.append(cached_result)
+                continue
+
             snapshot = get_fund_snapshot(
                 isin,
                 start_date=start_date,
@@ -84,6 +96,14 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
             )
             result = serialize_snapshot(snapshot)
             result["currency"] = currency
+            set_cached_fund_response(
+                isin=isin,
+                currency=currency,
+                start_date=start_date,
+                frequency=frequency,
+                language=language,
+                payload=result,
+            )
             funds.append(result)
         except MorningstarScraperError as error:
             errors.append({"isin": isin, "error": str(error)})
