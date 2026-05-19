@@ -40,6 +40,19 @@ function normalizeRange(value) {
   return RANGE_OPTIONS.some((option) => option.key === value) ? value : "1Y";
 }
 
+function resolveInitialTheme() {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+
+  const storedTheme = window.localStorage.getItem("fondoscope-theme");
+  if (storedTheme === "light" || storedTheme === "dark") {
+    return storedTheme;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 export default function FundDashboard({ language = "en" }) {
   const { dashboard } = getI18n(language);
   const [inputValue, setInputValue] = useState("");
@@ -55,6 +68,7 @@ export default function FundDashboard({ language = "en" }) {
   const debounceRef = useRef(null);
   const initializedFromUrl = useRef(false);
   const portfolioNameInputRef = useRef(null);
+  const [theme, setTheme] = useState("dark");
   const { portfolios, savePortfolio, removePortfolio } = useSavedPortfolios();
   const totalInputFunds = useMemo(() => parseIsins(inputValue).length, [inputValue]);
   const overflowFundsCount = Math.max(totalInputFunds - MAX_FUND_ENTRIES, 0);
@@ -122,6 +136,16 @@ export default function FundDashboard({ language = "en" }) {
       loadFunds(entriesFromQuery);
     }
   }, [loadFunds]);
+
+  useEffect(() => {
+    const nextTheme = resolveInitialTheme();
+    setTheme(nextTheme);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("fondoscope-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -233,6 +257,7 @@ export default function FundDashboard({ language = "en" }) {
   }, [errors.length, funds]);
   const showLoadingState = loading && !funds.length && !requestError;
   const hasResults = funds.length > 0;
+  const nextTheme = theme === "dark" ? "light" : "dark";
 
   const fundNameMap = useMemo(() => {
     const map = new Map();
@@ -263,61 +288,118 @@ export default function FundDashboard({ language = "en" }) {
 
   return (
     <main className="workspace">
-      <header className="workspace__header">
-        <h1>Fondoscope</h1>
-        <p className="workspace__subtitle">
-          {dashboard.subtitle}
-        </p>
-      </header>
+      <section className="workspace__masthead">
+        <header className="workspace__header">
+          <h1>Fondoscope</h1>
+          <p className="workspace__subtitle">
+            {dashboard.subtitle}
+          </p>
+        </header>
 
-      <form className="input-bar" onSubmit={handleSubmit}>
-        <div className="input-bar__body">
-          <textarea
-            value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
-            placeholder={dashboard.placeholder}
-            rows={3}
-          />
+        <div className="workspace__masthead-side">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme(nextTheme)}
+            aria-label={dashboard.themeToggleLabel(nextTheme)}
+            title={dashboard.themeToggleLabel(nextTheme)}
+          >
+            {dashboard.themeToggleShort(nextTheme)}
+          </button>
 
-          {fundEntries.length > 0 && (
-            <div className="fund-entries">
-              {fundEntries.map((entry) => {
-                const fundName = fundNameMap.get(entry.isin);
-                return (
-                <div key={entry.isin} className="fund-entry">
-                  <div className="fund-entry__info">
-                    <span className="fund-entry__isin">{entry.isin}</span>
-                    {fundName && <span className="fund-entry__name">{fundName}</span>}
+          <dl className="workspace__summary" aria-label={language === "es" ? "Resumen" : "Summary"}>
+            <div className="workspace__summary-item">
+              <dt>ISIN</dt>
+              <dd>{fundEntries.length}</dd>
+            </div>
+            <div className="workspace__summary-item">
+              <dt>{language === "es" ? "Fondos cargados" : "Loaded funds"}</dt>
+              <dd>{stats.funds}</dd>
+            </div>
+            <div className="workspace__summary-item">
+              <dt>{language === "es" ? "Rango activo" : "Active range"}</dt>
+              <dd>{rangeKey}</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <div className="workspace__content">
+        <aside className="control-rail">
+          <form className="input-bar panel-section" onSubmit={handleSubmit}>
+            <div className="panel-section__header">
+              <h2>{dashboard.loadSectionTitle}</h2>
+              <p>{dashboard.loadSectionDescription}</p>
+            </div>
+
+            <div className="input-bar__body">
+              <div className="input-bar__editor">
+                <textarea
+                  value={inputValue}
+                  onChange={(event) => setInputValue(event.target.value)}
+                  placeholder={dashboard.placeholder}
+                  rows={3}
+                />
+
+                {fundEntries.length > 0 && (
+                  <div className="fund-entries">
+                    {fundEntries.map((entry) => {
+                      const fundName = fundNameMap.get(entry.isin);
+                      return (
+                        <div key={entry.isin} className="fund-entry">
+                          <div className="fund-entry__info">
+                            <span className="fund-entry__isin">{entry.isin}</span>
+                            {fundName && <span className="fund-entry__name">{fundName}</span>}
+                          </div>
+                          <select
+                            className="fund-entry__currency"
+                            value={entry.currency}
+                            onChange={(event) => handleCurrencyChange(entry.isin, event.target.value)}
+                          >
+                            {CURRENCY_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="fund-entry__remove"
+                            onClick={() => handleRemoveEntry(entry.isin)}
+                            title={dashboard.removeTitle}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <select
-                    className="fund-entry__currency"
-                    value={entry.currency}
-                    onChange={(event) => handleCurrencyChange(entry.isin, event.target.value)}
-                  >
-                    {CURRENCY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="fund-entry__remove"
-                    onClick={() => handleRemoveEntry(entry.isin)}
-                    title={dashboard.removeTitle}
-                  >
-                    ×
+                )}
+
+                <div className="input-bar__actions">
+                  <p className="input-bar__hint">
+                    {overflowFundsCount
+                      ? dashboard.maxFundsHint(MAX_FUND_ENTRIES, overflowFundsCount)
+                      : fundEntries.length
+                      ? dashboard.selectedFundsHint(fundEntries.length)
+                      : dashboard.emptyHint
+                    }
+                  </p>
+                  <button type="submit" className="btn btn--primary" disabled={loading || !fundEntries.length}>
+                    {loading ? dashboard.loadingButton : dashboard.submitButton}
                   </button>
                 </div>
-                );
-              })}
+              </div>
             </div>
-          )}
+          </form>
 
-          <div className="portfolio-controls" aria-label={dashboard.portfolioSectionLabel}>
-            <div className="portfolio-controls__header">
-              <span>{dashboard.portfolioSectionLabel}</span>
-              {portfolios.length ? <span>{dashboard.savedPortfoliosCount(portfolios.length)}</span> : null}
+          <section className="portfolio-controls panel-section" aria-label={dashboard.portfolioSectionLabel}>
+            <div className="panel-section__header panel-section__header--compact">
+              <div className="portfolio-controls__header">
+                <strong>{dashboard.portfolioSectionLabel}</strong>
+                {portfolios.length ? <span>{dashboard.savedPortfoliosCount(portfolios.length)}</span> : null}
+              </div>
+              <p>{dashboard.portfolioSectionDescription}</p>
             </div>
 
             <div className="portfolio-controls__bar">
@@ -364,67 +446,52 @@ export default function FundDashboard({ language = "en" }) {
                 <p className="portfolio-list__empty">{dashboard.portfolioListEmpty}</p>
               )}
             </div>
-          </div>
+          </section>
+        </aside>
 
-          <div className="input-bar__actions">
-            <p className="input-bar__hint">
-              {overflowFundsCount
-                ? dashboard.maxFundsHint(MAX_FUND_ENTRIES, overflowFundsCount)
-                : fundEntries.length
-                ? dashboard.selectedFundsHint(fundEntries.length)
-                : dashboard.emptyHint
-              }
-            </p>
-            <button type="submit" className="btn btn--primary" disabled={loading || !fundEntries.length}>
-              {loading ? dashboard.loadingButton : dashboard.submitButton}
-            </button>
-          </div>
-        </div>
-      </form>
+        <section className="analysis-column">
+          {requestError ? <p className="banner banner--error">{requestError}</p> : null}
 
-      {requestError ? <p className="banner banner--error">{requestError}</p> : null}
+          {errors.length ? (
+            <section className="feedback-block">
+              <h2>{dashboard.errorSectionTitle}</h2>
+              <div className="feedback-list">
+                {errors.map((item) => (
+                  <article key={item.isin} className="feedback-card">
+                    <strong>{item.isin}</strong>
+                    <p>{item.error}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
-      {errors.length ? (
-        <section className="feedback-block">
-          <h2>{dashboard.errorSectionTitle}</h2>
-          <div className="feedback-list">
-            {errors.map((item) => (
-              <article key={item.isin} className="feedback-card">
-                <strong>{item.isin}</strong>
-                <p>{item.error}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {hasResults ? (
-        <div className="toolbar">
-          <div className="toolbar__left">
-            <ViewSwitcher language={language} activeView={activeView} onChange={setActiveView} />
-            <RangeSelector rangeKey={rangeKey} onSelect={setRangeKey} />
-          </div>
-          <div className="toolbar__stats">
-            <span>{dashboard.statsFunds(stats.funds)}</span>
-            <span>·</span>
-            <span>{stats.points} pts</span>
-            {stats.errors > 0 && (
-              <>
+          {hasResults ? (
+            <div className="toolbar">
+              <div className="toolbar__left">
+                <ViewSwitcher language={language} activeView={activeView} onChange={setActiveView} />
+                <RangeSelector rangeKey={rangeKey} onSelect={setRangeKey} />
+              </div>
+              <div className="toolbar__stats">
+                <span>{dashboard.statsFunds(stats.funds)}</span>
                 <span>·</span>
-                <span className="negative">{dashboard.statsErrors(stats.errors)}</span>
-              </>
-            )}
-            <span>·</span>
-            <span>{rangeKey}</span>
-          </div>
-        </div>
-      ) : null}
+                <span>{stats.points} pts</span>
+                {stats.errors > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="negative">{dashboard.statsErrors(stats.errors)}</span>
+                  </>
+                )}
+                <span>·</span>
+                <span>{rangeKey}</span>
+              </div>
+            </div>
+          ) : null}
 
-      {showLoadingState
-        ? <LoadingState language={language} variant={activeView === "compare" ? "compare" : "cards"} />
-        : hasResults
-          ? activeView === "compare"
-            ? (
+          {showLoadingState ? (
+            <LoadingState language={language} variant={activeView === "compare" ? "compare" : "cards"} />
+          ) : hasResults ? (
+            activeView === "compare" ? (
               <ComparisonChart
                 language={language}
                 funds={funds}
@@ -433,8 +500,7 @@ export default function FundDashboard({ language = "en" }) {
                 loading={loading}
                 onToggleFund={handleToggleFund}
               />
-            )
-            : (
+            ) : (
               <section className="fund-grid">
                 {funds.map((fund) => (
                   <FundCard
@@ -449,7 +515,14 @@ export default function FundDashboard({ language = "en" }) {
                 ))}
               </section>
             )
-          : null}
+          ) : (
+            <section className="empty-analysis">
+              <h2>{dashboard.analysisEmptyTitle}</h2>
+              <p>{dashboard.analysisEmptyDescription}</p>
+            </section>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

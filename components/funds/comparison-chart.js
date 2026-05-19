@@ -45,12 +45,9 @@ export default function ComparisonChart({
   return (
     <section className={loading ? "comparison-panel comparison-panel--loading" : "comparison-panel"}>
       <div className="comparison-panel__header">
-        <div>
-          <p className="fund-card__eyebrow">{comparisonChart.eyebrow}</p>
-          <p className="comparison-panel__lede">
-            {comparisonChart.lede}
-          </p>
-        </div>
+        <p className="comparison-panel__lede">
+          {comparisonChart.lede}
+        </p>
         <div className="comparison-panel__range">{rangeKey}</div>
       </div>
 
@@ -83,11 +80,11 @@ export default function ComparisonChart({
               data={chartData}
               margin={{ top: 16, right: 12, left: 0, bottom: 12 }}
             >
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={(value) => formatCompactDate(value, language)}
-                tick={{ fill: "rgba(226,221,213,0.74)", fontSize: 12, fontFamily: "var(--font-mono)" }}
+                tick={{ fill: "var(--chart-tick)", fontSize: 12, fontFamily: "var(--font-mono)" }}
                 axisLine={false}
                 tickLine={false}
                 interval="preserveStartEnd"
@@ -98,17 +95,17 @@ export default function ComparisonChart({
               />
               <YAxis
                 tickFormatter={(value) => formatPercent(value, 0, language)}
-                tick={{ fill: "rgba(226,221,213,0.74)", fontSize: 12, fontFamily: "var(--font-mono)" }}
+                tick={{ fill: "var(--chart-tick)", fontSize: 12, fontFamily: "var(--font-mono)" }}
                 axisLine={false}
                 tickLine={false}
                 width={52}
               />
               <Tooltip
                 contentStyle={{
-                  background: "#111218",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "var(--tooltip-bg)",
+                  border: "1px solid var(--tooltip-border)",
                   borderRadius: "10px",
-                  color: "#f6f1ea",
+                  color: "var(--text)",
                   fontFamily: "var(--font-body)",
                   fontSize: "0.82rem",
                 }}
@@ -118,7 +115,7 @@ export default function ComparisonChart({
               <Legend
                 wrapperStyle={{
                   paddingTop: "18px",
-                  color: "rgba(226, 221, 213, 0.82)",
+                  color: "var(--text)",
                   fontFamily: "var(--font-body)",
                   fontSize: "0.82rem",
                 }}

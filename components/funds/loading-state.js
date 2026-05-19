@@ -9,7 +9,6 @@ export default function LoadingState({ language = "en", variant = "cards" }) {
   return (
     <section className="loading-panel" aria-live="polite" aria-busy="true">
       <div className="loading-panel__header">
-        <p className="fund-card__eyebrow">{loadingState.eyebrow}</p>
         <p className="loading-panel__lede">
           {loadingState.lede}
         </p>

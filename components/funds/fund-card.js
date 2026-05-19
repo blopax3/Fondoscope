@@ -38,11 +38,10 @@ export default function FundCard({
     <article className={loading ? "fund-card fund-card--loading" : "fund-card"}>
       <div className="fund-card__header">
         <div>
-          <p className="fund-card__eyebrow">{fundCard.eyebrow}</p>
           <h2>{getFundLabel(fund)}</h2>
+          <p className="fund-card__identifier">{fund.isin}</p>
         </div>
         <div className="fund-card__meta">
-          <span>{fund.isin}</span>
           {currencyOptions && onCurrencyChange ? (
             <select
               className="fund-card__currency-select"
@@ -89,34 +88,29 @@ export default function FundCard({
         {filteredSeries.length ? (
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={filteredSeries} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id={`line-${fund.isin}`} x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#00c896" />
-                  <stop offset="100%" stopColor="#5b8def" />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={(value) => formatCompactDate(value, language)}
-                tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
+                tick={{ fill: "var(--chart-tick)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
                 domain={["auto", "auto"]}
                 tickFormatter={(value) => value.toFixed(0)}
-                tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
+                tick={{ fill: "var(--chart-tick)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
                 width={52}
               />
               <Tooltip
                 contentStyle={{
-                  background: "#0f0f12",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "var(--tooltip-bg)",
+                  border: "1px solid var(--tooltip-border)",
                   borderRadius: "8px",
                   fontSize: "0.82rem",
+                  color: "var(--text)",
                 }}
                 labelFormatter={(value) => formatDateLabel(value, language)}
                 formatter={(value) => [formatPrice(value, fund.currency, language), fundCard.navLabel]}
@@ -124,7 +118,7 @@ export default function FundCard({
               <Line
                 type="monotone"
                 dataKey="price"
-                stroke={`url(#line-${fund.isin})`}
+                stroke="#00c896"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, fill: "#00c896" }}
