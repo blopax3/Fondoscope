@@ -387,8 +387,9 @@ body::before {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 .fund-entry__isin {
@@ -402,9 +403,7 @@ body::before {
 .fund-entry__name {
   font-size: 0.76rem;
   color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
   min-width: 0;
 }
 
@@ -1132,6 +1131,9 @@ body::before {
 .correlation-matrix-panel__scroller {
   overflow-x: auto;
   --correlation-header-bg: #101218;
+  --correlation-highlighted-header-text: #f6f1ea;
+  --correlation-highlighted-header-tint: rgba(255, 255, 255, 0.06);
+  --correlation-highlighted-row-bg: rgba(255, 255, 255, 0.052);
 }
 
 .correlation-matrix {
@@ -1194,9 +1196,9 @@ body::before {
 
 .correlation-matrix thead th.is-highlighted,
 .correlation-matrix tbody th.is-highlighted {
-  color: #f6f1ea;
+  color: var(--correlation-highlighted-header-text);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, var(--correlation-header-bg) 100%);
+    linear-gradient(180deg, var(--correlation-highlighted-header-tint) 0%, var(--correlation-header-bg) 100%);
 }
 
 .correlation-matrix tbody th {
@@ -1214,7 +1216,7 @@ body::before {
 }
 
 .correlation-matrix tbody td.is-highlighted {
-  background: rgba(255, 255, 255, 0.052);
+  background: var(--correlation-highlighted-row-bg);
 }
 
 .correlation-matrix__cell {
@@ -1837,8 +1839,7 @@ body {
 }
 
 .fund-entry__info {
-  align-items: center;
-  gap: 12px;
+  gap: 4px;
 }
 
 .fund-entry__isin {
@@ -2134,11 +2135,14 @@ body {
   padding: 16px 18px 12px;
 }
 
-.comparison-table-panel__scroller,
-.correlation-matrix-panel__scroller {
+html[data-theme="light"] .comparison-table-panel__scroller,
+html[data-theme="light"] .correlation-matrix-panel__scroller {
   --comparison-header-bg: var(--table-header-bg);
   --comparison-section-bg: var(--table-section-bg);
   --correlation-header-bg: var(--table-header-bg);
+  --correlation-highlighted-header-text: var(--text);
+  --correlation-highlighted-header-tint: rgba(73, 54, 31, 0.08);
+  --correlation-highlighted-row-bg: rgba(73, 54, 31, 0.08);
 }
 
 .comparison-table thead th:first-child,
