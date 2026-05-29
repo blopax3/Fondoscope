@@ -309,7 +309,7 @@ export default function FundDashboard({ language = "en" }) {
 
           <dl className="workspace__summary" aria-label={language === "es" ? "Resumen" : "Summary"}>
             <div className="workspace__summary-item">
-              <dt>ISIN</dt>
+              <dt>{language === "es" ? "Entradas" : "Entries"}</dt>
               <dd>{fundEntries.length}</dd>
             </div>
             <div className="workspace__summary-item">

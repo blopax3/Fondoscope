@@ -9,7 +9,7 @@ from typing import Any
 
 CACHE_TTL_SECONDS = 6 * 60 * 60
 CACHE_MAX_ENTRIES = 300
-CACHE_FILE_PATH = Path(gettempdir()) / "fondoscope-morningstar-cache-v1.json"
+CACHE_FILE_PATH = Path(gettempdir()) / "fondoscope-morningstar-cache-v3.json"
 
 
 def _make_cache_key(*, isin: str, currency: str, start_date: str, frequency: str, language: str) -> str:

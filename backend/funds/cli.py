@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 from .cache import get_cached_fund_response, set_cached_fund_response
-from .morningstar_client import normalize_language
+from .morningstar_client import normalize_isin, normalize_language
 from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
+
+ISIN_PATTERN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
+
+
+def normalize_identifier(value: object) -> str:
+    normalized = normalize_isin(str(value or ""))
+    if ISIN_PATTERN.fullmatch(normalized):
+        return normalized
+    if normalized and normalized.startswith(("0P", "F0")):
+        return normalized
+    return ""
 
 
 def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
@@ -18,7 +30,7 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
             if not isinstance(entry, dict):
                 continue
 
-            isin = str(entry.get("isin", "")).strip().upper()
+            isin = normalize_identifier(entry.get("isin", ""))
             if not isin or isin in seen:
                 continue
 
@@ -41,7 +53,7 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
     seen: set[str] = set()
 
     for isin_value in isins:
-        isin = str(isin_value).strip().upper()
+        isin = normalize_identifier(isin_value)
         if not isin or isin in seen:
             continue
 
@@ -61,9 +73,9 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
 
     if not entries:
         raise ValueError(
-            "Debes indicar al menos un ISIN."
+            "Debes indicar al menos un ISIN o ID de Morningstar válido."
             if language == "es"
-            else "You must provide at least one ISIN."
+            else "You must provide at least one valid ISIN or Morningstar ID."
         )
 
     funds = []
