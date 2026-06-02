@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import time
 from pathlib import Path
 from tempfile import gettempdir
@@ -10,6 +11,7 @@ from typing import Any
 CACHE_TTL_SECONDS = 6 * 60 * 60
 CACHE_MAX_ENTRIES = 300
 CACHE_FILE_PATH = Path(gettempdir()) / "fondoscope-morningstar-cache-v3.json"
+CACHE_LOCK = threading.Lock()
 
 
 def _make_cache_key(*, isin: str, currency: str, start_date: str, frequency: str, language: str) -> str:
@@ -72,7 +74,8 @@ def get_cached_fund_response(
         language=language,
     )
     now = time.time()
-    cache = _read_cache_file()
+    with CACHE_LOCK:
+        cache = _read_cache_file()
     entries = cache["entries"]
     entry = entries.get(key)
 
@@ -105,12 +108,13 @@ def set_cached_fund_response(
     )
 
     now = time.time()
-    cache = _read_cache_file()
-    entries = _prune_entries(cache["entries"], now)
-    entries[key] = {
-        "updated_at": now,
-        "expires_at": now + CACHE_TTL_SECONDS,
-        "payload": payload,
-    }
-    cache["entries"] = _prune_entries(entries, now)
-    _write_cache_file(cache)
+    with CACHE_LOCK:
+        cache = _read_cache_file()
+        entries = _prune_entries(cache["entries"], now)
+        entries[key] = {
+            "updated_at": now,
+            "expires_at": now + CACHE_TTL_SECONDS,
+            "payload": payload,
+        }
+        cache["entries"] = _prune_entries(entries, now)
+        _write_cache_file(cache)

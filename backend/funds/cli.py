@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import os
 import re
 import sys
+from typing import Any
 
 from .cache import get_cached_fund_response, set_cached_fund_response
 from .morningstar_client import normalize_isin, normalize_language
 from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
 
 ISIN_PATTERN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
+DEFAULT_MAX_WORKERS = 4
 
 
 def normalize_identifier(value: object) -> str:
@@ -63,6 +67,63 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
     return normalized_entries
 
 
+def _resolve_max_workers(entry_count: int) -> int:
+    raw_value = os.environ.get("FONDOSCOPE_MAX_WORKERS", str(DEFAULT_MAX_WORKERS))
+    try:
+        configured_workers = int(raw_value)
+    except ValueError:
+        configured_workers = DEFAULT_MAX_WORKERS
+
+    return max(1, min(entry_count, configured_workers))
+
+
+def load_fund_entry(
+    entry: dict[str, str],
+    *,
+    start_date: str,
+    frequency: str,
+    language: str,
+) -> dict[str, Any]:
+    isin = entry.get("isin", "")
+    currency = entry.get("currency", "EUR")
+    if not isin:
+        return {"fund": None, "error": None}
+
+    try:
+        cached_result = get_cached_fund_response(
+            isin=isin,
+            currency=currency,
+            start_date=start_date,
+            frequency=frequency,
+            language=language,
+        )
+        if cached_result is not None:
+            return {"fund": cached_result, "error": None}
+
+        snapshot = get_fund_snapshot(
+            isin,
+            start_date=start_date,
+            currency=currency,
+            frequency=frequency,
+            language=language,
+        )
+        result = serialize_snapshot(snapshot)
+        result["currency"] = currency
+        set_cached_fund_response(
+            isin=isin,
+            currency=currency,
+            start_date=start_date,
+            frequency=frequency,
+            language=language,
+            payload=result,
+        )
+        return {"fund": result, "error": None}
+    except MorningstarScraperError as error:
+        return {"fund": None, "error": {"isin": isin, "error": str(error)}}
+    except Exception as error:
+        return {"fund": None, "error": {"isin": isin, "error": str(error)}}
+
+
 def build_response(payload: dict[str, object]) -> dict[str, object]:
     language = normalize_language(str(payload.get("language", "en")))
     start_date = payload.get("startDate", "2000-01-01")
@@ -78,49 +139,34 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
             else "You must provide at least one valid ISIN or Morningstar ID."
         )
 
-    funds = []
-    errors = []
+    ordered_results: list[dict[str, Any] | None] = [None] * len(entries)
+    max_workers = _resolve_max_workers(len(entries))
 
-    for entry in entries:
-        isin = entry.get("isin", "")
-        currency = entry.get("currency", "EUR")
-        if not isin:
-            continue
-
-        try:
-            cached_result = get_cached_fund_response(
-                isin=isin,
-                currency=currency,
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                load_fund_entry,
+                entry,
                 start_date=start_date,
                 frequency=frequency,
                 language=language,
-            )
-            if cached_result is not None:
-                funds.append(cached_result)
-                continue
+            ): index
+            for index, entry in enumerate(entries)
+        }
 
-            snapshot = get_fund_snapshot(
-                isin,
-                start_date=start_date,
-                currency=currency,
-                frequency=frequency,
-                language=language,
-            )
-            result = serialize_snapshot(snapshot)
-            result["currency"] = currency
-            set_cached_fund_response(
-                isin=isin,
-                currency=currency,
-                start_date=start_date,
-                frequency=frequency,
-                language=language,
-                payload=result,
-            )
-            funds.append(result)
-        except MorningstarScraperError as error:
-            errors.append({"isin": isin, "error": str(error)})
-        except Exception as error:
-            errors.append({"isin": isin, "error": str(error)})
+        for future in as_completed(futures):
+            ordered_results[futures[future]] = future.result()
+
+    funds = [
+        result["fund"]
+        for result in ordered_results
+        if result and result.get("fund") is not None
+    ]
+    errors = [
+        result["error"]
+        for result in ordered_results
+        if result and result.get("error") is not None
+    ]
 
     return {"funds": funds, "errors": errors}
 
