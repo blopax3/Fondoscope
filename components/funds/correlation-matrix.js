@@ -194,6 +194,9 @@ function CorrelationMatrix({ language = "en", funds, rangeKey }) {
         ref={scrollerRef}
         className="correlation-matrix-panel__scroller"
         data-scrolled={isHorizontallyScrolled ? "true" : "false"}
+        tabIndex={0}
+        role="region"
+        aria-label={correlation.eyebrow}
       >
         <table className="correlation-matrix">
           <thead>

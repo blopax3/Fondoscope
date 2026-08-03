@@ -48,6 +48,9 @@ function ComparisonTable({ language = "en", funds, rangeKey }) {
         ref={scrollerRef}
         className="comparison-table-panel__scroller"
         data-scrolled={isHorizontallyScrolled ? "true" : "false"}
+        tabIndex={0}
+        role="region"
+        aria-label={comparisonTable.eyebrow}
       >
         <table className="comparison-table">
           <thead>

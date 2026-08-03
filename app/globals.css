@@ -898,8 +898,37 @@ body::before {
 
 .comparison-table-panel__scroller {
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: var(--border-strong) var(--surface);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  background: var(--table-row-bg);
+  isolation: isolate;
   --comparison-header-bg: #101218;
   --comparison-section-bg: #163331;
+}
+
+.comparison-table-panel__scroller:focus-visible,
+.correlation-matrix-panel__scroller:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.comparison-table-panel__scroller::-webkit-scrollbar,
+.correlation-matrix-panel__scroller::-webkit-scrollbar {
+  height: 10px;
+}
+
+.comparison-table-panel__scroller::-webkit-scrollbar-track,
+.correlation-matrix-panel__scroller::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+.comparison-table-panel__scroller::-webkit-scrollbar-thumb,
+.correlation-matrix-panel__scroller::-webkit-scrollbar-thumb {
+  border: 3px solid var(--surface);
+  border-radius: 6px;
+  background: var(--border-strong);
 }
 
 .comparison-table {
@@ -948,11 +977,11 @@ body::before {
 }
 
 .comparison-table tbody tr:not(.comparison-table__section-row) {
-  --comparison-row-bg: rgba(255, 255, 255, 0.018);
+  --comparison-row-bg: var(--table-row-bg);
 }
 
 .comparison-table tbody tr:not(.comparison-table__section-row):nth-child(even) {
-  --comparison-row-bg: rgba(255, 255, 255, 0.034);
+  --comparison-row-bg: var(--table-even-row-bg);
 }
 
 .comparison-table tbody tr:not(.comparison-table__section-row) > th,
@@ -1013,8 +1042,11 @@ body::before {
 }
 
 .comparison-table-panel__scroller[data-scrolled="true"] .comparison-table tbody tr:not(.comparison-table__section-row) > th,
-.comparison-table-panel__scroller[data-scrolled="true"] .comparison-table__section-row th {
-  box-shadow: 12px 0 20px rgba(8, 8, 10, 0.32);
+.comparison-table-panel__scroller[data-scrolled="true"] .comparison-table__section-row th,
+.comparison-table-panel__scroller[data-scrolled="true"] .comparison-table thead th:first-child {
+  box-shadow:
+    1px 0 0 var(--border-strong),
+    12px 0 18px var(--table-sticky-shadow);
 }
 
 .comparison-table-panel__note {
@@ -1130,6 +1162,12 @@ body::before {
 
 .correlation-matrix-panel__scroller {
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: var(--border-strong) var(--surface);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  background: var(--table-row-bg);
+  isolation: isolate;
   --correlation-header-bg: #101218;
   --correlation-highlighted-header-text: #f6f1ea;
   --correlation-highlighted-header-tint: rgba(255, 255, 255, 0.06);
@@ -1182,11 +1220,11 @@ body::before {
 }
 
 .correlation-matrix tbody tr {
-  --correlation-row-bg: rgba(255, 255, 255, 0.018);
+  --correlation-row-bg: var(--table-row-bg);
 }
 
 .correlation-matrix tbody tr:nth-child(even) {
-  --correlation-row-bg: rgba(255, 255, 255, 0.034);
+  --correlation-row-bg: var(--table-even-row-bg);
 }
 
 .correlation-matrix tbody tr > th,
@@ -1257,8 +1295,11 @@ body::before {
   color: rgba(226, 221, 213, 0.58);
 }
 
-.correlation-matrix-panel__scroller[data-scrolled="true"] .correlation-matrix tbody th {
-  box-shadow: 12px 0 20px rgba(8, 8, 10, 0.32);
+.correlation-matrix-panel__scroller[data-scrolled="true"] .correlation-matrix tbody th,
+.correlation-matrix-panel__scroller[data-scrolled="true"] .correlation-matrix thead th:first-child {
+  box-shadow:
+    1px 0 0 var(--border-strong),
+    12px 0 18px var(--table-sticky-shadow);
 }
 
 .correlation-matrix-panel__note {
@@ -1490,7 +1531,9 @@ html[data-theme="dark"] {
   --tooltip-border: rgba(255, 255, 255, 0.1);
   --table-header-bg: #15181c;
   --table-section-bg: #1b211f;
-  --table-even-row: rgba(255, 255, 255, 0.018);
+  --table-row-bg: #121417;
+  --table-even-row-bg: #16181b;
+  --table-sticky-shadow: rgba(8, 8, 10, 0.24);
   --empty-surface: rgba(255, 255, 255, 0.02);
   --legend-heading: rgba(235, 228, 216, 0.64);
   --legend-value: rgba(235, 228, 216, 0.9);
@@ -1519,7 +1562,9 @@ html[data-theme="light"] {
   --tooltip-border: rgba(73, 54, 31, 0.18);
   --table-header-bg: #ede2d3;
   --table-section-bg: #e4d7c7;
-  --table-even-row: rgba(73, 54, 31, 0.05);
+  --table-row-bg: #fcfaf5;
+  --table-even-row-bg: #f3f0e9;
+  --table-sticky-shadow: rgba(73, 54, 31, 0.16);
   --empty-surface: rgba(73, 54, 31, 0.035);
   --legend-heading: rgba(43, 33, 22, 0.72);
   --legend-value: #2b2116;
@@ -2155,14 +2200,14 @@ html[data-theme="light"] .correlation-matrix-panel__scroller {
 
 .comparison-table tbody tr:not(.comparison-table__section-row),
 .correlation-matrix tbody tr {
-  --comparison-row-bg: transparent;
-  --correlation-row-bg: transparent;
+  --comparison-row-bg: var(--table-row-bg);
+  --correlation-row-bg: var(--table-row-bg);
 }
 
 .comparison-table tbody tr:not(.comparison-table__section-row):nth-child(even),
 .correlation-matrix tbody tr:nth-child(even) {
-  --comparison-row-bg: var(--table-even-row);
-  --correlation-row-bg: var(--table-even-row);
+  --comparison-row-bg: var(--table-even-row-bg);
+  --correlation-row-bg: var(--table-even-row-bg);
 }
 
 .comparison-table__section-row th {
