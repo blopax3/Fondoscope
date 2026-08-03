@@ -153,7 +153,7 @@ def fetch_history_by_id(
     timeout: int = 30,
     language: str = "en",
 ) -> pd.DataFrame:
-    url = "https://tools.morningstar.es/api/rest.svc/timeseries_price/t92wz0sj7c"
+    url = "https://lt.morningstar.com/api/rest.svc/timeseries_price/t92wz0sj7c"
     params = {
         "idtype": "Morningstar",
         "frequency": frequency,
