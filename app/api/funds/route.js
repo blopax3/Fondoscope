@@ -63,7 +63,8 @@ async function runLocalPython(body) {
     console.error(stderr);
   }
 
-  return Response.json(JSON.parse(stdout));
+  const result = JSON.parse(stdout);
+  return Response.json(result, { status: result.error ? 400 : 200 });
 }
 
 export async function POST(request) {

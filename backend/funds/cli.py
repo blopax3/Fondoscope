@@ -3,25 +3,19 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
-import re
 import sys
 from typing import Any
 
 from .cache import get_cached_fund_response, set_cached_fund_response
 from .morningstar_client import normalize_isin, normalize_language
+from .identifiers import normalize_yahoo_symbol
 from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
 
-ISIN_PATTERN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 DEFAULT_MAX_WORKERS = 4
 
 
 def normalize_identifier(value: object) -> str:
-    normalized = normalize_isin(str(value or ""))
-    if ISIN_PATTERN.fullmatch(normalized):
-        return normalized
-    if normalized and normalized.startswith(("0P", "F0")):
-        return normalized
-    return ""
+    return normalize_isin(value)
 
 
 def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
@@ -32,17 +26,23 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
 
         for entry in entries:
             if not isinstance(entry, dict):
-                continue
+                raise ValueError("Invalid fund entry / Entrada de fondo inválida.")
 
             isin = normalize_identifier(entry.get("isin", ""))
-            if not isin or isin in seen:
+            if not isin:
+                raise ValueError("Invalid ISIN / ISIN inválido: " + str(entry.get("isin", "")))
+            if isin in seen:
                 continue
 
             seen.add(isin)
             currency_value = entry.get("currency", "EUR")
             currency = currency_value.strip().upper() if isinstance(currency_value, str) else "EUR"
             currency = currency or "EUR"
-            normalized_entries.append({"isin": isin, "currency": currency})
+            raw_symbol = entry.get("yahooSymbol", "")
+            symbol = normalize_yahoo_symbol(raw_symbol)
+            if raw_symbol and not symbol:
+                raise ValueError("Invalid Yahoo symbol / Símbolo de Yahoo inválido.")
+            normalized_entries.append({"isin": isin, "currency": currency, "yahooSymbol": symbol})
 
         return normalized_entries
 
@@ -58,7 +58,9 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
 
     for isin_value in isins:
         isin = normalize_identifier(isin_value)
-        if not isin or isin in seen:
+        if not isin:
+            raise ValueError("Invalid ISIN / ISIN inválido: " + str(isin_value))
+        if isin in seen:
             continue
 
         seen.add(isin)
@@ -86,6 +88,7 @@ def load_fund_entry(
 ) -> dict[str, Any]:
     isin = entry.get("isin", "")
     currency = entry.get("currency", "EUR")
+    yahoo_symbol = entry.get("yahooSymbol", "")
     if not isin:
         return {"fund": None, "error": None}
 
@@ -96,6 +99,7 @@ def load_fund_entry(
             start_date=start_date,
             frequency=frequency,
             language=language,
+            yahoo_symbol=yahoo_symbol,
         )
         if cached_result is not None:
             return {"fund": cached_result, "error": None}
@@ -106,6 +110,7 @@ def load_fund_entry(
             currency=currency,
             frequency=frequency,
             language=language,
+            yahoo_symbol=yahoo_symbol,
         )
         result = serialize_snapshot(snapshot)
         result["currency"] = currency
@@ -115,6 +120,7 @@ def load_fund_entry(
             start_date=start_date,
             frequency=frequency,
             language=language,
+            yahoo_symbol=yahoo_symbol,
             payload=result,
         )
         return {"fund": result, "error": None}
@@ -125,18 +131,22 @@ def load_fund_entry(
 
 
 def build_response(payload: dict[str, object]) -> dict[str, object]:
+    if not isinstance(payload, dict):
+        raise ValueError("Expected a JSON object / Se esperaba un objeto JSON.")
     language = normalize_language(str(payload.get("language", "en")))
     start_date = payload.get("startDate", "2000-01-01")
     start_date = start_date if isinstance(start_date, str) else "2000-01-01"
     frequency = payload.get("frequency", "daily")
     frequency = frequency if isinstance(frequency, str) else "daily"
     entries = normalize_entries(payload)
+    if len(entries) > 8:
+        raise ValueError("Maximum 8 funds / Máximo 8 fondos.")
 
     if not entries:
         raise ValueError(
-            "Debes indicar al menos un ISIN o ID de Morningstar válido."
+            "Debes indicar al menos un ISIN válido."
             if language == "es"
-            else "You must provide at least one valid ISIN or Morningstar ID."
+            else "You must provide at least one valid ISIN."
         )
 
     ordered_results: list[dict[str, Any] | None] = [None] * len(entries)
@@ -173,8 +183,12 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
 
 def main() -> int:
     raw_payload = sys.argv[1] if len(sys.argv) > 1 else "{}"
-    payload = json.loads(raw_payload)
-    print(json.dumps(build_response(payload), ensure_ascii=False))
+    try:
+        payload = json.loads(raw_payload)
+        result = build_response(payload)
+    except ValueError as error:
+        result = {"error": str(error)}
+    print(json.dumps(result, ensure_ascii=False))
     return 0
 
 

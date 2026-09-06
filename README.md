@@ -63,3 +63,8 @@ pnpm run check
 ## Data Source
 
 Fondoscope retrieves fund metadata and historical series from public Morningstar endpoints.
+Input accepts ISINs with a valid check digit; URLs and internal Morningstar IDs are rejected.
+Each ISIN can have an optional `yahooSymbol` for the same fund and share class, saved with portfolios and shared links.
+Morningstar is always tried first. If its history is unavailable, the configured symbol is fetched from Yahoo Finance.
+Yahoo symbols must resolve to a mutual fund or ETF; their quoted currency must match the selected currency (no FX conversion).
+Yahoo closing prices are used, without dividend adjustments, and the actual provider is shown in the fund input list.

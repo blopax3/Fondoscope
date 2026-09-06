@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 import json
-import re
 
 import pandas as pd
 import requests
 
 from .config import DEFAULT_UNIVERSES, HEADERS
 from .models import SearchCandidate
-from .yahoo_client import YahooFinanceError, search_symbol_by_isin
+from .identifiers import normalize_isin
 
 
 class MorningstarScraperError(Exception):
     pass
-
-
-MORNINGSTAR_ID_PATTERN = re.compile(r"(0P[A-Z0-9]+|F0[A-Z0-9]+)", re.IGNORECASE)
 
 
 def normalize_language(language: str) -> str:
@@ -46,20 +42,6 @@ def translate(language: str, key: str, **kwargs: object) -> str:
     return messages[selected_language][key].format(**kwargs)
 
 
-def normalize_isin(isin: str) -> str:
-    raw_value = str(isin or "").strip()
-    morningstar_match = MORNINGSTAR_ID_PATTERN.search(raw_value)
-    if morningstar_match:
-        return morningstar_match.group(1).upper()
-
-    return re.sub(r"[^A-Za-z0-9]", "", raw_value).upper()
-
-
-def is_morningstar_security_id(value: str) -> bool:
-    normalized = normalize_isin(value)
-    return bool(MORNINGSTAR_ID_PATTERN.fullmatch(normalized))
-
-
 def _session() -> requests.Session:
     session = requests.Session()
     session.headers.update(HEADERS)
@@ -86,24 +68,6 @@ def _parse_security_search_response(text: str) -> list[SearchCandidate]:
     return results
 
 
-def _candidate_from_yahoo_lookup(isin: str) -> SearchCandidate | None:
-    try:
-        quote = search_symbol_by_isin(isin)
-    except YahooFinanceError:
-        return None
-
-    symbol = str(quote.get("symbol") or "").strip()
-    if not symbol:
-        return None
-
-    morningstar_id = normalize_isin(symbol)
-    if not is_morningstar_security_id(morningstar_id):
-        return None
-
-    name = str(quote.get("name") or isin).strip() or isin
-    return SearchCandidate(name=name, raw={"i": morningstar_id})
-
-
 def search_candidates(isin: str, timeout: int = 20, language: str = "en") -> list[SearchCandidate]:
     normalized_isin = normalize_isin(isin)
     url = "https://www.morningstar.es/es/util/SecuritySearch.ashx"
@@ -123,10 +87,6 @@ def search_candidates(isin: str, timeout: int = 20, language: str = "en") -> lis
         except requests.RequestException as error:
             request_errors.append(f"{method.upper()} {type(error).__name__}: {error}")
             continue
-
-    yahoo_candidate = _candidate_from_yahoo_lookup(normalized_isin)
-    if yahoo_candidate is not None:
-        return [yahoo_candidate]
 
     if request_errors:
         raise MorningstarScraperError(
@@ -206,10 +166,9 @@ def resolve_history(
     language: str = "en",
 ) -> tuple[str, pd.DataFrame, dict[str, str]]:
     normalized_input = normalize_isin(isin)
-    if is_morningstar_security_id(normalized_input):
-        candidates = [SearchCandidate(name=normalized_input, raw={"i": normalized_input})]
-    else:
-        candidates = search_candidates(normalized_input, language=language)
+    if not normalized_input:
+        raise MorningstarScraperError("ISIN inválido." if language == "es" else "Invalid ISIN.")
+    candidates = search_candidates(normalized_input, language=language)
     errors: list[str] = []
 
     for candidate in candidates:

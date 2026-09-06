@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from .config import DEFAULT_CURRENCY, DEFAULT_FREQUENCY, DEFAULT_START_DATE
 from .models import FundSnapshot
 from .morningstar_client import MorningstarScraperError, normalize_isin, resolve_history
+from .identifiers import normalize_yahoo_symbol
+from .yahoo_client import YahooFinanceError, fetch_yahoo_history
 
 
 def get_fund_snapshot(
@@ -14,16 +16,34 @@ def get_fund_snapshot(
     currency: str = DEFAULT_CURRENCY,
     frequency: str = DEFAULT_FREQUENCY,
     language: str = "en",
+    yahoo_symbol: str = "",
 ) -> FundSnapshot:
     normalized_isin = normalize_isin(isin)
-
-    fund_name, history, metadata = resolve_history(
-        normalized_isin,
-        start_date=start_date,
-        currency=currency,
-        frequency=frequency,
-        language=language,
-    )
+    if not normalized_isin:
+        raise ValueError("ISIN inválido." if language == "es" else "Invalid ISIN.")
+    if yahoo_symbol and not normalize_yahoo_symbol(yahoo_symbol):
+        raise ValueError("Símbolo de Yahoo inválido." if language == "es" else "Invalid Yahoo symbol.")
+    try:
+        fund_name, history, metadata = resolve_history(
+            normalized_isin, start_date=start_date, currency=currency,
+            frequency=frequency, language=language,
+        )
+        if history.empty:
+            raise MorningstarScraperError("Morningstar: empty history")
+    except MorningstarScraperError as error:
+        if not yahoo_symbol:
+            raise MorningstarScraperError(
+                "Morningstar no dispone de histórico. Añade el símbolo de Yahoo Finance del mismo fondo como alternativa."
+                if language == "es" else
+                "Morningstar history is unavailable. Add the Yahoo Finance symbol for the same fund as a fallback."
+            ) from error
+        try:
+            fund_name, history, metadata = fetch_yahoo_history(
+                yahoo_symbol, start_date=start_date, currency=currency,
+                frequency=frequency, language=language,
+            )
+        except YahooFinanceError as yahoo_error:
+            raise MorningstarScraperError(str(yahoo_error)) from yahoo_error
 
     latest_date = None
     if not history.empty:

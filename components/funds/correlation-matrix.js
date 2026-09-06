@@ -140,6 +140,8 @@ function CorrelationMatrix({ language = "en", funds, rangeKey }) {
     }
 
     const syncScrollState = () => {
+      setHighlightedRowIsin(null);
+      setHighlightedColumnIsin(null);
       const nextValue = scroller.scrollLeft > 0;
       setIsHorizontallyScrolled((currentValue) => (
         currentValue === nextValue ? currentValue : nextValue
@@ -157,7 +159,7 @@ function CorrelationMatrix({ language = "en", funds, rangeKey }) {
   useEffect(() => {
     setHighlightedRowIsin(null);
     setHighlightedColumnIsin(null);
-  }, [matrix.funds.length, rangeKey]);
+  }, [funds, rangeKey]);
 
   if (!matrix.funds.length) {
     return null;
@@ -197,6 +199,7 @@ function CorrelationMatrix({ language = "en", funds, rangeKey }) {
         tabIndex={0}
         role="region"
         aria-label={correlation.eyebrow}
+        onMouseLeave={clearHighlight}
       >
         <table className="correlation-matrix">
           <thead>
@@ -207,7 +210,7 @@ function CorrelationMatrix({ language = "en", funds, rangeKey }) {
                   key={fund.isin}
                   scope="col"
                   className={highlightedColumnIsin === fund.isin ? "is-highlighted" : ""}
-                  onMouseEnter={() => {
+                  onMouseMove={() => {
                     setHighlightedRowIsin(null);
                     setHighlightedColumnIsin(fund.isin);
                   }}
@@ -228,7 +231,7 @@ function CorrelationMatrix({ language = "en", funds, rangeKey }) {
                   <th
                     scope="row"
                     className={isRowHighlighted ? "is-highlighted" : ""}
-                    onMouseEnter={() => {
+                    onMouseMove={() => {
                       setHighlightedRowIsin(row.fund.isin);
                       setHighlightedColumnIsin(null);
                     }}
@@ -255,7 +258,7 @@ function CorrelationMatrix({ language = "en", funds, rangeKey }) {
                       <td
                         key={`${row.fund.isin}-${columnFund.isin}`}
                         className={isHighlighted ? "is-highlighted" : ""}
-                        onMouseEnter={() => {
+                        onMouseMove={() => {
                           setHighlightedRowIsin(row.fund.isin);
                           setHighlightedColumnIsin(columnFund.isin);
                         }}

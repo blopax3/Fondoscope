@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { normalizeFundIdentifierToken, isValidYahooSymbol, MAX_FUND_ENTRIES } from "../lib/fund-data";
 
 const STORAGE_KEY = "fondoscope.savedPortfolios.v1";
 
@@ -17,18 +18,19 @@ function normalizePortfolio(portfolio) {
           return null;
         }
 
-        const isin = typeof entry.isin === "string" ? entry.isin.trim().toUpperCase() : "";
+        const isin = normalizeFundIdentifierToken(entry.isin);
+        const yahooSymbol = String(entry.yahooSymbol || "").trim().toUpperCase();
         const currency = typeof entry.currency === "string" ? entry.currency.trim().toUpperCase() : "EUR";
-        if (!isin) {
+        if (!isin || !isValidYahooSymbol(yahooSymbol)) {
           return null;
         }
 
-        return { isin, currency: currency || "EUR" };
+        return { isin, currency: currency || "EUR", yahooSymbol };
       })
       .filter(Boolean)
     : [];
 
-  if (!name || !entries.length) {
+  if (!name || !entries.length || entries.length !== portfolio.entries.length || entries.length > MAX_FUND_ENTRIES) {
     return null;
   }
 
@@ -78,12 +80,13 @@ export function useSavedPortfolios() {
 
     const cleanEntries = entries
       .map((entry) => ({
-        isin: String(entry?.isin || "").trim().toUpperCase(),
+        isin: normalizeFundIdentifierToken(entry?.isin),
+        yahooSymbol: String(entry?.yahooSymbol || "").trim().toUpperCase(),
         currency: String(entry?.currency || "EUR").trim().toUpperCase() || "EUR",
       }))
-      .filter((entry) => entry.isin);
+      .filter((entry) => entry.isin && isValidYahooSymbol(entry.yahooSymbol));
 
-    if (!cleanEntries.length) {
+    if (!cleanEntries.length || cleanEntries.length !== entries.length || cleanEntries.length > MAX_FUND_ENTRIES) {
       return false;
     }
 

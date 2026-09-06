@@ -10,12 +10,12 @@ from typing import Any
 
 CACHE_TTL_SECONDS = 6 * 60 * 60
 CACHE_MAX_ENTRIES = 300
-CACHE_FILE_PATH = Path(gettempdir()) / "fondoscope-morningstar-cache-v3.json"
+CACHE_FILE_PATH = Path(gettempdir()) / "fondoscope-funds-cache-v4.json"
 CACHE_LOCK = threading.Lock()
 
 
-def _make_cache_key(*, isin: str, currency: str, start_date: str, frequency: str, language: str) -> str:
-    raw = "|".join([isin, currency, start_date, frequency, language])
+def _make_cache_key(*, isin: str, currency: str, start_date: str, frequency: str, language: str, yahoo_symbol: str = "") -> str:
+    raw = "|".join([isin, currency, start_date, frequency, language, yahoo_symbol])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -65,6 +65,7 @@ def get_cached_fund_response(
     start_date: str,
     frequency: str,
     language: str,
+    yahoo_symbol: str = "",
 ) -> dict[str, Any] | None:
     key = _make_cache_key(
         isin=isin,
@@ -72,6 +73,7 @@ def get_cached_fund_response(
         start_date=start_date,
         frequency=frequency,
         language=language,
+        yahoo_symbol=yahoo_symbol,
     )
     now = time.time()
     with CACHE_LOCK:
@@ -97,6 +99,7 @@ def set_cached_fund_response(
     start_date: str,
     frequency: str,
     language: str,
+    yahoo_symbol: str = "",
     payload: dict[str, Any],
 ) -> None:
     key = _make_cache_key(
@@ -105,6 +108,7 @@ def set_cached_fund_response(
         start_date=start_date,
         frequency=frequency,
         language=language,
+        yahoo_symbol=yahoo_symbol,
     )
 
     now = time.time()

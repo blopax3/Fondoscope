@@ -7,7 +7,7 @@ import LoadingState from "./funds/loading-state";
 import RangeSelector from "./funds/range-selector";
 import ViewSwitcher from "./funds/view-switcher";
 import { useSavedPortfolios } from "./use-saved-portfolios";
-import { fetchFunds, MAX_FUND_ENTRIES, parseIsins, RANGE_OPTIONS } from "../lib/fund-data";
+import { fetchFunds, getInvalidIsins, isValidYahooSymbol, MAX_FUND_ENTRIES, parseIsins, RANGE_OPTIONS } from "../lib/fund-data";
 import { getI18n } from "../lib/i18n";
 
 const CURRENCY_OPTIONS = [
@@ -27,12 +27,13 @@ function buildEntriesFromQuery(query) {
   const isins = parseIsins(query.get("isins") || "", MAX_FUND_ENTRIES);
   const currencies = (query.get("currencies") || "")
     .split(",")
-    .map((item) => item.trim().toUpperCase())
-    .filter(Boolean);
+    .map((item) => item.trim().toUpperCase());
+  const symbols = (query.get("yahooSymbols") || "").split(",");
 
   return isins.map((isin, index) => ({
     isin,
     currency: currencies[index] || "EUR",
+    yahooSymbol: (symbols[index] || "").trim().toUpperCase(),
   }));
 }
 
@@ -65,21 +66,23 @@ export default function FundDashboard({ language = "en" }) {
   const [requestError, setRequestError] = useState("");
   const [loading, setLoading] = useState(false);
   const [reloadingIsin, setReloadingIsin] = useState(null);
-  const debounceRef = useRef(null);
   const initializedFromUrl = useRef(false);
   const portfolioNameInputRef = useRef(null);
   const [theme, setTheme] = useState("dark");
   const { portfolios, savePortfolio, removePortfolio } = useSavedPortfolios();
   const totalInputFunds = useMemo(() => parseIsins(inputValue).length, [inputValue]);
   const overflowFundsCount = Math.max(totalInputFunds - MAX_FUND_ENTRIES, 0);
+  const invalidIsins = useMemo(() => getInvalidIsins(inputValue), [inputValue]);
+  const invalidSymbols = fundEntries.some((entry) => !isValidYahooSymbol(entry.yahooSymbol));
 
   const syncEntries = useCallback((text) => {
     const isins = parseIsins(text, MAX_FUND_ENTRIES);
     setFundEntries((current) => {
-      const existingMap = new Map(current.map((e) => [e.isin, e.currency]));
+      const existingMap = new Map(current.map((e) => [e.isin, e]));
       return isins.map((isin) => ({
         isin,
-        currency: existingMap.get(isin) ?? "EUR",
+        currency: existingMap.get(isin)?.currency ?? "EUR",
+        yahooSymbol: existingMap.get(isin)?.yahooSymbol ?? "",
       }));
     });
   }, []);
@@ -148,25 +151,17 @@ export default function FundDashboard({ language = "en" }) {
   }, [theme]);
 
   useEffect(() => {
-    clearTimeout(debounceRef.current);
-    if (!inputValue.trim()) {
-      setFundEntries([]);
-      return;
-    }
-    debounceRef.current = setTimeout(() => syncEntries(inputValue), 300);
-    return () => clearTimeout(debounceRef.current);
-  }, [inputValue, syncEntries]);
-
-  useEffect(() => {
     const query = new URLSearchParams(window.location.search);
 
     if (fundEntries.length) {
       query.set("isins", fundEntries.map((entry) => entry.isin).join(","));
       query.set("currencies", fundEntries.map((entry) => entry.currency).join(","));
+      query.set("yahooSymbols", fundEntries.map((entry) => entry.yahooSymbol || "").join(","));
       query.set("range", rangeKey);
     } else {
       query.delete("isins");
       query.delete("currencies");
+      query.delete("yahooSymbols");
       query.delete("range");
     }
 
@@ -178,7 +173,8 @@ export default function FundDashboard({ language = "en" }) {
   async function reloadFund(isin, currency) {
     setReloadingIsin(isin);
     try {
-      const payload = await fetchFunds([{ isin, currency }], language);
+      const yahooSymbol = fundEntries.find((entry) => entry.isin === isin)?.yahooSymbol || "";
+      const payload = await fetchFunds([{ isin, currency, yahooSymbol }], language);
       const newFund = (payload.funds || [])[0];
       if (newFund) {
         setFunds((current) =>
@@ -208,6 +204,10 @@ export default function FundDashboard({ language = "en" }) {
   }
 
   function handleSaveComparison() {
+    if (invalidIsins.length || invalidSymbols || overflowFundsCount) {
+      setRequestError(dashboard.portfolioSaveError);
+      return;
+    }
     if (!fundEntries.length) {
       setRequestError(dashboard.missingIsin);
       return;
@@ -272,12 +272,17 @@ export default function FundDashboard({ language = "en" }) {
   function handleSubmit(event) {
     event.preventDefault();
 
-    if (!fundEntries.length) {
+    if (invalidIsins.length || invalidSymbols || overflowFundsCount) return;
+    const entries = parseIsins(inputValue, MAX_FUND_ENTRIES).map((isin) => (
+      fundEntries.find((entry) => entry.isin === isin) || { isin, currency: "EUR", yahooSymbol: "" }
+    ));
+    if (!entries.length) {
       setRequestError(dashboard.missingIsin);
       return;
     }
 
-    loadFunds(fundEntries);
+    setFundEntries(entries);
+    loadFunds(entries);
   }
 
   function handleToggleFund(isin) {
@@ -334,9 +339,16 @@ export default function FundDashboard({ language = "en" }) {
 
             <div className="input-bar__body">
               <div className="input-bar__editor">
+                <label htmlFor="fund-isins">{dashboard.isinLabel}</label>
                 <textarea
+                  id="fund-isins"
+                  aria-invalid={invalidIsins.length > 0}
+                  aria-describedby="fund-input-feedback"
                   value={inputValue}
-                  onChange={(event) => setInputValue(event.target.value)}
+                  onChange={(event) => {
+                    setInputValue(event.target.value);
+                    syncEntries(event.target.value);
+                  }}
                   placeholder={dashboard.placeholder}
                   rows={3}
                 />
@@ -352,6 +364,7 @@ export default function FundDashboard({ language = "en" }) {
                             {fundName && <span className="fund-entry__name">{fundName}</span>}
                           </div>
                           <select
+                            aria-label={`${dashboard.currencyLabel}: ${entry.isin}`}
                             className="fund-entry__currency"
                             value={entry.currency}
                             onChange={(event) => handleCurrencyChange(entry.isin, event.target.value)}
@@ -370,6 +383,30 @@ export default function FundDashboard({ language = "en" }) {
                           >
                             ×
                           </button>
+                          <label className="fund-entry__fallback">
+                            <span>{dashboard.yahooSymbolLabel}</span>
+                            <input
+                              value={entry.yahooSymbol || ""}
+                              placeholder="0P0001CLDK.F"
+                              autoComplete="off"
+                              spellCheck={false}
+                              maxLength={32}
+                              pattern="[A-Za-z0-9][A-Za-z0-9.\-]{0,31}"
+                              aria-invalid={!isValidYahooSymbol(entry.yahooSymbol)}
+                              onChange={(event) => {
+                                const yahooSymbol = event.target.value.trim().toUpperCase();
+                                setFundEntries((current) => current.map((item) => (
+                                  item.isin === entry.isin ? { ...item, yahooSymbol } : item
+                                )));
+                              }}
+                            />
+                            <span>{dashboard.yahooSymbolHint}</span>
+                          </label>
+                          {funds.find((fund) => fund.isin === entry.isin)?.metadata?.provider && (
+                            <span className="fund-entry__source">
+                              {dashboard.sourceLabel}: {funds.find((fund) => fund.isin === entry.isin)?.metadata.provider === "yahoo" ? "Yahoo Finance" : "Morningstar"}
+                            </span>
+                          )}
                         </div>
                       );
                     })}
@@ -377,15 +414,18 @@ export default function FundDashboard({ language = "en" }) {
                 )}
 
                 <div className="input-bar__actions">
-                  <p className="input-bar__hint">
-                    {overflowFundsCount
+                  <p id="fund-input-feedback" className="input-bar__hint" aria-live="polite">
+                    {invalidIsins.length
+                      ? `${dashboard.invalidIsins}: ${invalidIsins.join(", ")}`
+                      : invalidSymbols ? dashboard.invalidYahooSymbol
+                      : overflowFundsCount
                       ? dashboard.maxFundsHint(MAX_FUND_ENTRIES, overflowFundsCount)
                       : fundEntries.length
                       ? dashboard.selectedFundsHint(fundEntries.length)
                       : dashboard.emptyHint
                     }
                   </p>
-                  <button type="submit" className="btn btn--primary" disabled={loading || !fundEntries.length}>
+                  <button type="submit" className="btn btn--primary" disabled={loading || !totalInputFunds || invalidIsins.length > 0 || invalidSymbols || overflowFundsCount > 0}>
                     {loading ? dashboard.loadingButton : dashboard.submitButton}
                   </button>
                 </div>
