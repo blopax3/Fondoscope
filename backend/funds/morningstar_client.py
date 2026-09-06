@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 import pandas as pd
 import requests
 
@@ -21,7 +19,7 @@ def normalize_language(language: str) -> str:
 def translate(language: str, key: str, **kwargs: object) -> str:
     messages = {
         "en": {
-            "search_no_results": "No results were found in SecuritySearch.ashx for ISIN {isin}",
+            "search_no_results": "Morningstar returned no exact match for ISIN {isin}.",
             "search_unavailable": "Could not query Morningstar security search for ISIN {isin}: {details}",
             "unexpected_structure": "Unexpected structure in the Morningstar response for id={secid}: {payload}",
             "missing_columns": "EndDate/Value columns were not found in HistoryDetail: {columns}",
@@ -29,7 +27,7 @@ def translate(language: str, key: str, **kwargs: object) -> str:
             "history_not_found": "Could not retrieve history with any of the tested IDs/universes.\n{details}",
         },
         "es": {
-            "search_no_results": "No se encontraron resultados en SecuritySearch.ashx para el ISIN {isin}",
+            "search_no_results": "Morningstar no devolvió ninguna coincidencia exacta para el ISIN {isin}.",
             "search_unavailable": "No se pudo consultar el buscador de Morningstar para el ISIN {isin}: {details}",
             "unexpected_structure": "Estructura inesperada en la respuesta de Morningstar para id={secid}: {payload}",
             "missing_columns": "No se encontraron columnas EndDate/Value en HistoryDetail: {columns}",
@@ -48,55 +46,53 @@ def _session() -> requests.Session:
     return session
 
 
-def _parse_security_search_response(text: str) -> list[SearchCandidate]:
+def _parse_security_search_response(payload: object, isin: str) -> list[SearchCandidate]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("rows"), list):
+        raise ValueError("Morningstar search response is missing rows")
     results: list[SearchCandidate] = []
-    previous_part = ""
-
-    for part in text.split("|"):
-        part = part.strip()
-        if part.startswith("{") and part.endswith("}"):
-            try:
-                item = json.loads(part)
-            except json.JSONDecodeError:
-                continue
-
-            candidate_name = str(item.get("name") or item.get("n") or previous_part or "")
-            results.append(SearchCandidate(name=candidate_name, raw=item))
-        elif part:
-            previous_part = part
-
+    seen: set[str] = set()
+    for row in payload["rows"]:
+        if not isinstance(row, dict) or normalize_isin(row.get("ISIN")) != isin:
+            continue
+        secid = row.get("SecId")
+        if not isinstance(secid, str) or not secid.strip() or secid in seen:
+            continue
+        seen.add(secid)
+        results.append(SearchCandidate(name=str(row.get("Name") or isin), raw={"i": secid.strip()}))
     return results
 
 
 def search_candidates(isin: str, timeout: int = 20, language: str = "en") -> list[SearchCandidate]:
     normalized_isin = normalize_isin(isin)
-    url = "https://www.morningstar.es/es/util/SecuritySearch.ashx"
-    session = _session()
-    request_errors: list[str] = []
-
-    for method, kwargs in (
-        ("post", {"data": {"q": normalized_isin}}),
-        ("get", {"params": {"q": normalized_isin}}),
-    ):
-        try:
-            response = getattr(session, method)(url, timeout=timeout, **kwargs)
-            response.raise_for_status()
-            results = _parse_security_search_response(response.text)
-            if results:
-                return results
-        except requests.RequestException as error:
-            request_errors.append(f"{method.upper()} {type(error).__name__}: {error}")
-            continue
-
-    if request_errors:
+    if not normalized_isin:
+        raise MorningstarScraperError("ISIN inválido." if language == "es" else "Invalid ISIN.")
+    # The old SecuritySearch.ashx redirects to the global homepage without results.
+    # Use the same public Integrated Web Tools service as the history endpoint.
+    url = "https://lt.morningstar.com/api/rest.svc/t92wz0sj7c/security/screener"
+    try:
+        response = _session().get(url, params={
+            "page": 1,
+            "pageSize": 100,
+            "outputType": "json",
+            "version": 1,
+            "languageId": "es-ES" if normalize_language(language) == "es" else "en-GB",
+            "universeIds": "|".join(DEFAULT_UNIVERSES),
+            "securityDataPoints": "SecId,Name,ISIN",
+            "filters": f"ISIN:EQ:{normalized_isin}",
+        }, timeout=timeout)
+        response.raise_for_status()
+        results = _parse_security_search_response(response.json(), normalized_isin)
+    except (requests.RequestException, ValueError) as error:
         raise MorningstarScraperError(
             translate(
                 language,
                 "search_unavailable",
-                isin=normalized_isin,
-                details=" | ".join(request_errors),
+                isin=normalized_isin, details=str(error),
             )
-        )
+        ) from error
+
+    if results:
+        return results
 
     raise MorningstarScraperError(
         translate(language, "search_no_results", isin=normalized_isin)

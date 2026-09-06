@@ -33,9 +33,9 @@ def get_fund_snapshot(
     except MorningstarScraperError as error:
         if not yahoo_symbol:
             raise MorningstarScraperError(
-                "Morningstar no dispone de histórico. Añade el símbolo de Yahoo Finance del mismo fondo como alternativa."
+                f"No se pudo recuperar el histórico de Morningstar. {error}\nAñade el símbolo de Yahoo Finance del mismo fondo como alternativa."
                 if language == "es" else
-                "Morningstar history is unavailable. Add the Yahoo Finance symbol for the same fund as a fallback."
+                f"Could not retrieve Morningstar history. {error}\nAdd the Yahoo Finance symbol for the same fund as a fallback."
             ) from error
         try:
             fund_name, history, metadata = fetch_yahoo_history(
