@@ -21,7 +21,8 @@ async function main() {
     await page.route('**/api/funds', async (route) => {
       submitted = route.request().postDataJSON();
       await route.fulfill({ json: { errors: [], funds: submitted.entries.map((entry, index) => ({
-        ...entry, name: `Fondo de prueba ${index + 1} con nombre largo y clase de acumulación`,
+        ...entry, currency: entry.currency === 'AUTO' ? 'USD' : entry.currency,
+        name: `Fondo de prueba ${index + 1} con nombre largo y clase de acumulación`,
         metadata: { provider: index === 0 ? 'yahoo' : 'morningstar' },
         history: Array.from({ length: 100 }, (_, day) => ({
           date: new Date(Date.UTC(2026, 4, day + 1)).toISOString().slice(0, 10),
@@ -30,27 +31,27 @@ async function main() {
       })) } });
     });
     await page.goto('http://127.0.0.1:3000');
-    const input = page.locator('#fund-isins');
+    const input = page.locator('#fund-identifiers');
     const submit = page.getByRole('button', { name: 'Consultar', exact: true });
-    for (const invalid of ['https://www.morningstar.es/0P0001CLDK', 'IE00B4L5Y984', 'VWCE.DE']) {
+    for (const invalid of ['https://www.morningstar.es/0P0001CLDK', 'IE00B4L5Y984']) {
       await input.fill(invalid);
       assert.equal(await submit.isDisabled(), true);
     }
-    await input.fill(isins.join('\n'));
+    await input.fill([isins.slice(0, 7), 'aapl'].flat().join('\n'));
     await page.locator('.fund-entry').last().waitFor();
     await page.waitForFunction(() => document.querySelectorAll('.fund-entry').length === 8);
-    const fallback = page.locator('.fund-entry__fallback input').first();
-    await fallback.fill('0p0001cldk.f');
     await submit.click();
     await page.locator('.fund-entry__source').first().waitFor();
-    assert.equal(submitted.entries[0].yahooSymbol, '0P0001CLDK.F');
+    assert.equal(submitted.entries[7].isin, 'AAPL');
+    assert.equal(submitted.entries[7].yahooSymbol, 'AAPL');
+    assert.equal(submitted.entries[7].currency, 'AUTO');
     assert.match(await page.locator('.fund-entry__source').first().innerText(), /Yahoo Finance/);
     await page.getByRole('button', { name: 'Guardar comparación', exact: true }).click();
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('fondoscope.savedPortfolios.v1')));
-    assert.equal(saved[0].entries[0].yahooSymbol, '0P0001CLDK.F');
+    assert.equal(saved[0].entries[7].yahooSymbol, 'AAPL');
     await page.reload();
     await page.locator('.fund-entry__source').first().waitFor();
-    assert.equal(await fallback.inputValue(), '0P0001CLDK.F');
+    assert.equal(await page.locator('#fund-identifiers').inputValue(), [...isins.slice(0, 7), 'AAPL'].join('\n'));
     await page.getByRole('button', { name: 'Comparar fondos', exact: true }).click();
     const scroller = page.locator('.correlation-matrix-panel__scroller');
     await scroller.scrollIntoViewIfNeeded();
@@ -86,7 +87,7 @@ async function main() {
     assert.ok(stickyWidth <= 160);
     await scroller.screenshot({ path: '/tmp/fondoscope-correlation-mobile.png' });
     assert.deepEqual(errors, []);
-    console.log('UI OK: input validation, Yahoo symbol, portfolio/URL persistence, 8-fund matrix hover and scroll, both themes, mobile overflow.');
+    console.log('UI OK: mixed ISIN/Yahoo input, validation, portfolio/URL persistence, 8-asset matrix hover and scroll, both themes, mobile overflow.');
   } finally {
     await browser.close();
   }

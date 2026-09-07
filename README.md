@@ -1,8 +1,8 @@
 # Fondoscope
 
-Fondoscope is a web app for looking up and comparing investment funds by ISIN.
+Fondoscope is a web app for looking up and comparing funds, stocks, and ETFs by ISIN or Yahoo Finance symbol.
 
-Paste one or more ISINs, choose a currency for each fund, and review their historical performance in cards, charts, comparison tables, and correlation views.
+Paste one or more ISINs or Yahoo Finance symbols, choose a currency for each asset, and review their historical performance in cards, charts, comparison tables, and correlation views.
 
 ## Live Demo
 
@@ -14,11 +14,11 @@ https://fondoscope-plum.vercel.app/
 
 ## What It Does
 
-- Loads multiple funds from ISIN codes
-- Lets you assign a different currency to each fund
+- Loads multiple assets from fund ISINs and Yahoo Finance symbols in the same input
+- Lets you assign a different currency to each asset
 - Compares performance across common time ranges
-- Shows per-fund cards, an overlay chart, a comparison table, and a correlation matrix
-- Highlights unresolved funds or data retrieval errors
+- Shows per-asset cards, an overlay chart, a comparison table, and a correlation matrix
+- Highlights unresolved assets or data retrieval errors
 
 ## Tech Stack
 
@@ -62,9 +62,8 @@ pnpm run check
 
 ## Data Source
 
-Fondoscope retrieves fund metadata and historical series from public Morningstar endpoints.
-Input accepts ISINs with a valid check digit; URLs and internal Morningstar IDs are rejected.
-Each ISIN can have an optional `yahooSymbol` for the same fund and share class, saved with portfolios and shared links.
-Morningstar is always tried first. If its history is unavailable, the configured symbol is fetched from Yahoo Finance.
-Yahoo symbols must resolve to a mutual fund or ETF; their quoted currency must match the selected currency (no FX conversion).
+Fondoscope retrieves ISIN data from public Morningstar endpoints and symbol data from Yahoo Finance.
+Input accepts ISINs with a valid check digit and Yahoo Finance symbols; URLs are rejected.
+ISINs are fetched from Morningstar, while Yahoo symbols are fetched directly from Yahoo Finance and may identify funds, stocks, ETFs, indices, or other supported instruments.
+Yahoo symbols default to automatic currency detection. Selecting an explicit currency validates that it matches Yahoo's quoted currency (no FX conversion).
 Yahoo closing prices are used, without dividend adjustments, and the actual provider is shown in the fund input list.

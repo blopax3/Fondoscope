@@ -8,9 +8,6 @@ from urllib.parse import quote
 from .config import HEADERS
 from .identifiers import normalize_yahoo_symbol
 
-ALLOWED_QUOTE_TYPES = {"MUTUALFUND", "ETF"}
-
-
 class YahooFinanceError(Exception):
     pass
 
@@ -37,13 +34,8 @@ def fetch_yahoo_history(symbol: str, *, start_date: str, currency: str,
             raise ValueError("Yahoo chart error")
         result = chart["result"][0]
         metadata = result["meta"]
-        if metadata.get("instrumentType") not in ALLOWED_QUOTE_TYPES:
-            raise YahooFinanceError(
-                "El símbolo de Yahoo debe corresponder a un fondo o ETF."
-                if spanish else "The Yahoo symbol must identify a mutual fund or ETF."
-            )
         actual_currency = metadata.get("currency", "")
-        if actual_currency != currency:
+        if currency != "AUTO" and actual_currency != currency:
             raise YahooFinanceError(
                 f"Yahoo publica {symbol} en {actual_currency or '?'}. Selecciona esa divisa; no se realiza conversión."
                 if spanish else f"Yahoo quotes {symbol} in {actual_currency or '?'}. Select that currency; no conversion is applied."
@@ -67,7 +59,7 @@ def fetch_yahoo_history(symbol: str, *, start_date: str, currency: str,
     return metadata.get("longName") or metadata.get("shortName") or symbol, history, {
         "provider": "yahoo", "resolved_symbol": symbol,
         "resolved_exchange": metadata.get("exchangeName", ""),
-        "resolved_currency": actual_currency, "resolved_quote_type": metadata["instrumentType"],
+        "resolved_currency": actual_currency, "resolved_quote_type": metadata.get("instrumentType", ""),
     }
 
 

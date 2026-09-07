@@ -8,14 +8,18 @@ from typing import Any
 
 from .cache import get_cached_fund_response, set_cached_fund_response
 from .morningstar_client import normalize_isin, normalize_language
-from .identifiers import normalize_yahoo_symbol
+from .identifiers import ISIN_PATTERN, normalize_yahoo_symbol
 from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
 
 DEFAULT_MAX_WORKERS = 4
 
 
 def normalize_identifier(value: object) -> str:
-    return normalize_isin(value)
+    raw_value = value.strip().upper() if isinstance(value, str) else ""
+    isin = normalize_isin(raw_value)
+    if isin or ISIN_PATTERN.fullmatch(raw_value):
+        return isin
+    return normalize_yahoo_symbol(raw_value)
 
 
 def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
@@ -28,21 +32,27 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
             if not isinstance(entry, dict):
                 raise ValueError("Invalid fund entry / Entrada de fondo inválida.")
 
-            isin = normalize_identifier(entry.get("isin", ""))
-            if not isin:
-                raise ValueError("Invalid ISIN / ISIN inválido: " + str(entry.get("isin", "")))
-            if isin in seen:
+            raw_identifier = entry.get("identifier", entry.get("isin", ""))
+            raw_identifier_text = raw_identifier.strip().upper() if isinstance(raw_identifier, str) else ""
+            isin = normalize_isin(raw_identifier_text)
+            direct_symbol = "" if isin or ISIN_PATTERN.fullmatch(raw_identifier_text) else normalize_yahoo_symbol(raw_identifier_text)
+            identifier = isin or direct_symbol
+            if not identifier:
+                raise ValueError("Invalid ISIN or Yahoo symbol / ISIN o símbolo de Yahoo inválido: " + str(raw_identifier))
+            if identifier in seen:
                 continue
 
-            seen.add(isin)
+            seen.add(identifier)
             currency_value = entry.get("currency", "EUR")
             currency = currency_value.strip().upper() if isinstance(currency_value, str) else "EUR"
             currency = currency or "EUR"
-            raw_symbol = entry.get("yahooSymbol", "")
+            raw_symbol = direct_symbol or entry.get("yahooSymbol", "")
             symbol = normalize_yahoo_symbol(raw_symbol)
             if raw_symbol and not symbol:
                 raise ValueError("Invalid Yahoo symbol / Símbolo de Yahoo inválido.")
-            normalized_entries.append({"isin": isin, "currency": currency, "yahooSymbol": symbol})
+            if direct_symbol and currency == "EUR" and "currency" not in entry:
+                currency = "AUTO"
+            normalized_entries.append({"isin": identifier, "currency": currency, "yahooSymbol": symbol})
 
         return normalized_entries
 
@@ -114,6 +124,8 @@ def load_fund_entry(
         )
         result = serialize_snapshot(snapshot)
         result["currency"] = currency
+        if currency == "AUTO":
+            result["currency"] = snapshot.metadata.get("resolved_currency") or ""
         set_cached_fund_response(
             isin=isin,
             currency=currency,
@@ -144,9 +156,9 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
 
     if not entries:
         raise ValueError(
-            "Debes indicar al menos un ISIN válido."
+            "Debes indicar al menos un ISIN o símbolo de Yahoo válido."
             if language == "es"
-            else "You must provide at least one valid ISIN."
+            else "You must provide at least one valid ISIN or Yahoo symbol."
         )
 
     ordered_results: list[dict[str, Any] | None] = [None] * len(entries)

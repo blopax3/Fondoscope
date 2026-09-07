@@ -1,7 +1,7 @@
 import re
 
 ISIN_PATTERN = re.compile(r"[A-Z]{2}[A-Z0-9]{9}[0-9]")
-YAHOO_SYMBOL_PATTERN = re.compile(r"[A-Z0-9][A-Z0-9.-]{0,31}")
+YAHOO_SYMBOL_PATTERN = re.compile(r"[A-Z0-9^][A-Z0-9.^=-]{0,31}")
 
 
 def normalize_isin(value: object) -> str:

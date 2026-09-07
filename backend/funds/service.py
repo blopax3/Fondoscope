@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from .config import DEFAULT_CURRENCY, DEFAULT_FREQUENCY, DEFAULT_START_DATE
 from .models import FundSnapshot
 from .morningstar_client import MorningstarScraperError, normalize_isin, resolve_history
-from .identifiers import normalize_yahoo_symbol
+from .identifiers import ISIN_PATTERN, normalize_yahoo_symbol
 from .yahoo_client import YahooFinanceError, fetch_yahoo_history
 
 
@@ -18,32 +18,44 @@ def get_fund_snapshot(
     language: str = "en",
     yahoo_symbol: str = "",
 ) -> FundSnapshot:
-    normalized_isin = normalize_isin(isin)
-    if not normalized_isin:
-        raise ValueError("ISIN inválido." if language == "es" else "Invalid ISIN.")
+    raw_identifier = isin.strip().upper() if isinstance(isin, str) else ""
+    normalized_isin = normalize_isin(raw_identifier)
+    direct_symbol = "" if normalized_isin or ISIN_PATTERN.fullmatch(raw_identifier) else normalize_yahoo_symbol(raw_identifier)
+    identifier = normalized_isin or direct_symbol
+    if not identifier:
+        raise ValueError("ISIN o símbolo de Yahoo inválido." if language == "es" else "Invalid ISIN or Yahoo symbol.")
     if yahoo_symbol and not normalize_yahoo_symbol(yahoo_symbol):
         raise ValueError("Símbolo de Yahoo inválido." if language == "es" else "Invalid Yahoo symbol.")
-    try:
-        fund_name, history, metadata = resolve_history(
-            normalized_isin, start_date=start_date, currency=currency,
-            frequency=frequency, language=language,
-        )
-        if history.empty:
-            raise MorningstarScraperError("Morningstar: empty history")
-    except MorningstarScraperError as error:
-        if not yahoo_symbol:
-            raise MorningstarScraperError(
-                f"No se pudo recuperar el histórico de Morningstar. {error}\nAñade el símbolo de Yahoo Finance del mismo fondo como alternativa."
-                if language == "es" else
-                f"Could not retrieve Morningstar history. {error}\nAdd the Yahoo Finance symbol for the same fund as a fallback."
-            ) from error
+    if direct_symbol:
         try:
             fund_name, history, metadata = fetch_yahoo_history(
-                yahoo_symbol, start_date=start_date, currency=currency,
+                direct_symbol, start_date=start_date, currency=currency,
                 frequency=frequency, language=language,
             )
         except YahooFinanceError as yahoo_error:
             raise MorningstarScraperError(str(yahoo_error)) from yahoo_error
+    else:
+        try:
+            fund_name, history, metadata = resolve_history(
+                normalized_isin, start_date=start_date, currency=currency,
+                frequency=frequency, language=language,
+            )
+            if history.empty:
+                raise MorningstarScraperError("Morningstar: empty history")
+        except MorningstarScraperError as error:
+            if not yahoo_symbol:
+                raise MorningstarScraperError(
+                    f"No se pudo recuperar el histórico de Morningstar. {error}"
+                    if language == "es" else
+                    f"Could not retrieve Morningstar history. {error}"
+                ) from error
+            try:
+                fund_name, history, metadata = fetch_yahoo_history(
+                    yahoo_symbol, start_date=start_date, currency=currency,
+                    frequency=frequency, language=language,
+                )
+            except YahooFinanceError as yahoo_error:
+                raise MorningstarScraperError(str(yahoo_error)) from yahoo_error
 
     latest_date = None
     if not history.empty:
@@ -52,8 +64,8 @@ def get_fund_snapshot(
             latest_date = latest_date.isoformat()
 
     snapshot = FundSnapshot(
-        isin=normalized_isin,
-        name=fund_name or normalized_isin,
+        isin=identifier,
+        name=fund_name or identifier,
         history=history,
         metadata={
             **metadata,
