@@ -1728,7 +1728,7 @@ body {
 }
 
 .workspace {
-  width: min(100%, 1520px);
+  width: min(100%, 1680px);
   margin: 0 auto;
   padding: 32px 28px 72px;
 }
