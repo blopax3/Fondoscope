@@ -20,12 +20,11 @@ function normalizePortfolio(portfolio) {
 
         const isin = normalizeFundIdentifierToken(entry.isin);
         const yahooSymbol = isYahooFundIdentifier(isin) ? isin : "";
-        const currency = typeof entry.currency === "string" ? entry.currency.trim().toUpperCase() : "EUR";
         if (!isin) {
           return null;
         }
 
-        return { isin, currency: currency || "EUR", yahooSymbol };
+        return { isin, yahooSymbol };
       })
       .filter(Boolean)
     : [];
@@ -82,7 +81,6 @@ export function useSavedPortfolios() {
       .map((entry) => ({
         isin: normalizeFundIdentifierToken(entry?.isin),
         yahooSymbol: isYahooFundIdentifier(entry?.isin) ? normalizeFundIdentifierToken(entry?.isin) : "",
-        currency: String(entry?.currency || "EUR").trim().toUpperCase() || "EUR",
       }))
       .filter((entry) => entry.isin);
 

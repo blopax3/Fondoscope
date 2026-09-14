@@ -18,6 +18,7 @@ class FundSnapshot:
 class SearchCandidate:
     name: str
     raw: dict[str, Any]
+    currency: str = ""
 
     @property
     def candidate_ids(self) -> list[tuple[str, str]]:

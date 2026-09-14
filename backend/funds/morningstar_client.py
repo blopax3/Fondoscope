@@ -58,7 +58,12 @@ def _parse_security_search_response(payload: object, isin: str) -> list[SearchCa
         if not isinstance(secid, str) or not secid.strip() or secid in seen:
             continue
         seen.add(secid)
-        results.append(SearchCandidate(name=str(row.get("Name") or isin), raw={"i": secid.strip()}))
+        currency = str(row.get("Currency") or "").strip().upper()
+        results.append(SearchCandidate(
+            name=str(row.get("Name") or isin),
+            raw={"i": secid.strip()},
+            currency=currency if len(currency) == 3 and currency.isalpha() else "",
+        ))
     return results
 
 
@@ -77,7 +82,7 @@ def search_candidates(isin: str, timeout: int = 20, language: str = "en") -> lis
             "version": 1,
             "languageId": "es-ES" if normalize_language(language) == "es" else "en-GB",
             "universeIds": "|".join(DEFAULT_UNIVERSES),
-            "securityDataPoints": "SecId,Name,ISIN",
+            "securityDataPoints": "SecId,Name,ISIN,Currency",
             "filters": f"ISIN:EQ:{normalized_isin}",
         }, timeout=timeout)
         response.raise_for_status()
@@ -168,13 +173,17 @@ def resolve_history(
     errors: list[str] = []
 
     for candidate in candidates:
+        resolved_currency = candidate.currency if currency == "AUTO" else currency
+        if not resolved_currency:
+            errors.append(f"{candidate.name} -> native currency unavailable")
+            continue
         for id_kind, candidate_id in candidate.candidate_ids:
             for universe in universes:
                 try:
                     history = fetch_history_by_id(
                         candidate_id,
                         start_date=start_date,
-                        currency=currency,
+                        currency=resolved_currency,
                         frequency=frequency,
                         universe=universe,
                         language=language,
@@ -200,6 +209,7 @@ def resolve_history(
                     "resolved_id": candidate_id,
                     "resolved_id_kind": id_kind,
                     "resolved_universe": universe,
+                    "resolved_currency": resolved_currency,
                 }
 
     raise MorningstarScraperError(

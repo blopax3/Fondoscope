@@ -21,7 +21,7 @@ async function main() {
     await page.route('**/api/funds', async (route) => {
       submitted = route.request().postDataJSON();
       await route.fulfill({ json: { errors: [], funds: submitted.entries.map((entry, index) => ({
-        ...entry, currency: entry.currency === 'AUTO' ? 'USD' : entry.currency,
+        ...entry, currency: index === 7 ? 'USD' : 'EUR',
         name: `Fondo de prueba ${index + 1} con nombre largo y clase de acumulación`,
         metadata: { provider: index === 0 ? 'yahoo' : 'morningstar' },
         history: Array.from({ length: 100 }, (_, day) => ({
@@ -44,11 +44,12 @@ async function main() {
     await page.locator('.fund-entry__source').first().waitFor();
     assert.equal(submitted.entries[7].isin, 'AAPL');
     assert.equal(submitted.entries[7].yahooSymbol, 'AAPL');
-    assert.equal(submitted.entries[7].currency, 'AUTO');
+    assert.equal('currency' in submitted.entries[7], false);
     assert.match(await page.locator('.fund-entry__source').first().innerText(), /Yahoo Finance/);
     await page.getByRole('button', { name: 'Guardar comparación', exact: true }).click();
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('fondoscope.savedPortfolios.v1')));
     assert.equal(saved[0].entries[7].yahooSymbol, 'AAPL');
+    assert.equal('currency' in saved[0].entries[7], false);
     await page.reload();
     await page.locator('.fund-entry__source').first().waitFor();
     assert.equal(await page.locator('#fund-identifiers').inputValue(), [...isins.slice(0, 7), 'AAPL'].join('\n'));

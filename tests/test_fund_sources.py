@@ -32,10 +32,9 @@ class FundSourcesTest(unittest.TestCase):
         self.assertEqual(entry["yahooSymbol"], "VWCE.DE")
         symbol_entry = normalize_entries({"entries": [{"isin": "aapl", "currency": "AUTO"}]})[0]
         self.assertEqual(symbol_entry, {"isin": "AAPL", "currency": "AUTO", "yahooSymbol": "AAPL"})
+        self.assertEqual(normalize_entries({"entries": [{"isin": ISIN}]})[0]["currency"], "AUTO")
         with self.assertRaises(ValueError):
             normalize_entries({"entries": [{"isin": "IE00B4L5Y984"}]})
-        with self.assertRaisesRegex(ValueError, "currency"):
-            normalize_entries({"entries": [{"isin": ISIN, "currency": "AUTO"}]})
         with self.assertRaisesRegex(ValueError, "currency"):
             normalize_entries({"entries": [{"isin": "AAPL", "currency": "BTC"}]})
 

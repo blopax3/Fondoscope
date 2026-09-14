@@ -25,8 +25,6 @@ export default function FundCard({
   fund,
   rangeKey,
   loading,
-  currencyOptions,
-  onCurrencyChange,
 }) {
   const { fundCard } = getI18n(language);
   const filteredSeries = filterSeries(fund.history, rangeKey);
@@ -47,23 +45,7 @@ export default function FundCard({
           </p>
         </div>
         <div className="fund-card__meta">
-          {currencyOptions && onCurrencyChange ? (
-            <select
-              className="fund-card__currency-select"
-              aria-label={`${fundCard.currencyLabel}: ${getFundLabel(fund)}`}
-              value={fund.currency || "EUR"}
-              onChange={(event) => onCurrencyChange(fund.isin, event.target.value)}
-              disabled={loading}
-            >
-              {currencyOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            fund.currency && <span className="fund-card__currency">{fund.currency}</span>
-          )}
+          {fund.currency && <span className="fund-card__currency">{fund.currency}</span>}
         </div>
       </div>
 
@@ -124,10 +106,10 @@ export default function FundCard({
               <Line
                 type="monotone"
                 dataKey="price"
-                stroke="#00c896"
+                stroke="var(--fund-color-1)"
                 strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 4, fill: "#00c896" }}
+                activeDot={{ r: 4, fill: "var(--fund-color-1)" }}
               />
             </LineChart>
           </ResponsiveContainer>

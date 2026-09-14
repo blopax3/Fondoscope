@@ -46,17 +46,15 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
                 continue
 
             seen.add(identifier)
-            currency_value = entry.get("currency", "EUR")
-            currency = currency_value.strip().upper() if isinstance(currency_value, str) else "EUR"
-            currency = currency or "EUR"
-            if currency not in SUPPORTED_CURRENCIES or (currency == "AUTO" and not direct_symbol):
+            currency_value = entry.get("currency", "AUTO")
+            currency = currency_value.strip().upper() if isinstance(currency_value, str) else "AUTO"
+            currency = currency or "AUTO"
+            if currency not in SUPPORTED_CURRENCIES:
                 raise ValueError("Unsupported currency / Divisa no compatible: " + currency)
             raw_symbol = direct_symbol or entry.get("yahooSymbol", "")
             symbol = normalize_yahoo_symbol(raw_symbol)
             if raw_symbol and not symbol:
                 raise ValueError("Invalid Yahoo symbol / Símbolo de Yahoo inválido.")
-            if direct_symbol and currency == "EUR" and "currency" not in entry:
-                currency = "AUTO"
             normalized_entries.append({"isin": identifier, "currency": currency, "yahooSymbol": symbol})
 
         return normalized_entries
@@ -65,9 +63,9 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
     if not isinstance(isins, list):
         return []
 
-    global_currency_value = payload.get("currency", "EUR")
-    global_currency = global_currency_value.strip().upper() if isinstance(global_currency_value, str) else "EUR"
-    global_currency = global_currency or "EUR"
+    global_currency_value = payload.get("currency", "AUTO")
+    global_currency = global_currency_value.strip().upper() if isinstance(global_currency_value, str) else "AUTO"
+    global_currency = global_currency or "AUTO"
     if global_currency not in SUPPORTED_CURRENCIES:
         raise ValueError("Unsupported currency / Divisa no compatible: " + global_currency)
     normalized_entries = []
@@ -79,9 +77,6 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
             raise ValueError("Invalid ISIN / ISIN inválido: " + str(isin_value))
         if isin in seen:
             continue
-        if global_currency == "AUTO" and normalize_isin(isin):
-            raise ValueError("Unsupported currency / Divisa no compatible: AUTO")
-
         seen.add(isin)
         normalized_entries.append({"isin": isin, "currency": global_currency})
 
@@ -106,7 +101,7 @@ def load_fund_entry(
     language: str,
 ) -> dict[str, Any]:
     isin = entry.get("isin", "")
-    currency = entry.get("currency", "EUR")
+    currency = entry.get("currency", "AUTO")
     yahoo_symbol = entry.get("yahooSymbol", "")
     if not isin:
         return {"fund": None, "error": None}
