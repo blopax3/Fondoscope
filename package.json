@@ -1,6 +1,6 @@
 {
   "name": "fondoscope",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Interactive history viewer for funds, stocks, and ETFs by ISIN or Yahoo Finance symbol",
   "private": true,
   "packageManager": "pnpm@9.15.9",

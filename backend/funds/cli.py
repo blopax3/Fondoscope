@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date
 import json
 import os
 import sys
@@ -12,6 +13,8 @@ from .identifiers import ISIN_PATTERN, normalize_yahoo_symbol
 from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
 
 DEFAULT_MAX_WORKERS = 4
+SUPPORTED_CURRENCIES = {"AUTO", "EUR", "USD", "GBP", "CHF", "JPY", "SEK", "NOK", "DKK", "CAD", "AUD"}
+SUPPORTED_FREQUENCIES = {"daily", "weekly", "monthly"}
 
 
 def normalize_identifier(value: object) -> str:
@@ -46,6 +49,8 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
             currency_value = entry.get("currency", "EUR")
             currency = currency_value.strip().upper() if isinstance(currency_value, str) else "EUR"
             currency = currency or "EUR"
+            if currency not in SUPPORTED_CURRENCIES or (currency == "AUTO" and not direct_symbol):
+                raise ValueError("Unsupported currency / Divisa no compatible: " + currency)
             raw_symbol = direct_symbol or entry.get("yahooSymbol", "")
             symbol = normalize_yahoo_symbol(raw_symbol)
             if raw_symbol and not symbol:
@@ -63,6 +68,8 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
     global_currency_value = payload.get("currency", "EUR")
     global_currency = global_currency_value.strip().upper() if isinstance(global_currency_value, str) else "EUR"
     global_currency = global_currency or "EUR"
+    if global_currency not in SUPPORTED_CURRENCIES:
+        raise ValueError("Unsupported currency / Divisa no compatible: " + global_currency)
     normalized_entries = []
     seen: set[str] = set()
 
@@ -72,6 +79,8 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
             raise ValueError("Invalid ISIN / ISIN inválido: " + str(isin_value))
         if isin in seen:
             continue
+        if global_currency == "AUTO" and normalize_isin(isin):
+            raise ValueError("Unsupported currency / Divisa no compatible: AUTO")
 
         seen.add(isin)
         normalized_entries.append({"isin": isin, "currency": global_currency})
@@ -150,6 +159,14 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
     start_date = start_date if isinstance(start_date, str) else "2000-01-01"
     frequency = payload.get("frequency", "daily")
     frequency = frequency if isinstance(frequency, str) else "daily"
+    try:
+        parsed_start_date = date.fromisoformat(start_date)
+    except ValueError as error:
+        raise ValueError("Invalid start date / Fecha inicial inválida.") from error
+    if parsed_start_date > date.today():
+        raise ValueError("Start date cannot be in the future / La fecha inicial no puede ser futura.")
+    if frequency not in SUPPORTED_FREQUENCIES:
+        raise ValueError("Unsupported frequency / Frecuencia no compatible.")
     entries = normalize_entries(payload)
     if len(entries) > 8:
         raise ValueError("Maximum 8 funds / Máximo 8 fondos.")

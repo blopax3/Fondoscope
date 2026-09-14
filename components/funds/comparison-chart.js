@@ -33,6 +33,10 @@ export default function ComparisonChart({
 }) {
   const { comparisonChart } = getI18n(language);
   const selectedFundsSet = useMemo(() => new Set(selectedFunds), [selectedFunds]);
+  const fundColorMap = useMemo(
+    () => new Map(funds.map((fund, index) => [fund.isin, FUND_COLORS[index % FUND_COLORS.length]])),
+    [funds]
+  );
   const visibleFunds = useMemo(
     () => funds.filter((fund) => selectedFundsSet.has(fund.isin)),
     [funds, selectedFundsSet]
@@ -52,7 +56,7 @@ export default function ComparisonChart({
       </div>
 
       <div className="comparison-selector">
-        {funds.map((fund, index) => {
+        {funds.map((fund) => {
           const active = selectedFundsSet.has(fund.isin);
 
           return (
@@ -61,10 +65,11 @@ export default function ComparisonChart({
               type="button"
               className={active ? "comparison-chip active" : "comparison-chip"}
               onClick={() => onToggleFund(fund.isin)}
+              aria-pressed={active}
             >
               <span
                 className="comparison-chip__swatch"
-                style={{ backgroundColor: FUND_COLORS[index % FUND_COLORS.length] }}
+                style={{ backgroundColor: fundColorMap.get(fund.isin) }}
               />
               {getFundDisplayName(fund)}
             </button>
@@ -72,7 +77,7 @@ export default function ComparisonChart({
         })}
       </div>
 
-      <div className="comparison-panel__chart">
+      <div className="comparison-panel__chart" role="img" aria-label={comparisonChart.chartLabel}>
         {visibleFunds.length && chartData.length ? (
           <ResponsiveContainer width="100%" height={420}>
             <LineChart
@@ -120,13 +125,13 @@ export default function ComparisonChart({
                   fontSize: "0.82rem",
                 }}
               />
-              {visibleFunds.map((fund, index) => (
+              {visibleFunds.map((fund) => (
                 <Line
                   key={fund.isin}
                   type="monotone"
                   dataKey={fund.isin}
                   name={getFundDisplayName(fund)}
-                  stroke={FUND_COLORS[index % FUND_COLORS.length]}
+                  stroke={fundColorMap.get(fund.isin)}
                   strokeWidth={2}
                   dot={false}
                   connectNulls

@@ -18,6 +18,7 @@ https://fondoscope-plum.vercel.app/
 - Lets you assign a different currency to each asset
 - Compares performance across common time ranges
 - Shows per-asset cards, an overlay chart, a comparison table, and a correlation matrix
+- Shares the current comparison through its URL and shows each asset's data source and latest date
 - Highlights unresolved assets or data retrieval errors
 
 ## Tech Stack

@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from backend.funds.identifiers import normalize_isin, normalize_yahoo_symbol
-from backend.funds.cli import normalize_entries
+from backend.funds.cli import build_response, normalize_entries
 from backend.funds.cache import _make_cache_key
 from backend.funds.service import get_fund_snapshot, MorningstarScraperError
 from backend.funds.yahoo_client import fetch_yahoo_history, YahooFinanceError
@@ -34,6 +34,18 @@ class FundSourcesTest(unittest.TestCase):
         self.assertEqual(symbol_entry, {"isin": "AAPL", "currency": "AUTO", "yahooSymbol": "AAPL"})
         with self.assertRaises(ValueError):
             normalize_entries({"entries": [{"isin": "IE00B4L5Y984"}]})
+        with self.assertRaisesRegex(ValueError, "currency"):
+            normalize_entries({"entries": [{"isin": ISIN, "currency": "AUTO"}]})
+        with self.assertRaisesRegex(ValueError, "currency"):
+            normalize_entries({"entries": [{"isin": "AAPL", "currency": "BTC"}]})
+
+    def test_request_options_are_validated(self):
+        with self.assertRaisesRegex(ValueError, "date"):
+            build_response({"entries": [{"isin": ISIN}], "startDate": "not-a-date"})
+        with self.assertRaisesRegex(ValueError, "future"):
+            build_response({"entries": [{"isin": ISIN}], "startDate": "2999-01-01"})
+        with self.assertRaisesRegex(ValueError, "frequency"):
+            build_response({"entries": [{"isin": ISIN}], "frequency": "hourly"})
 
     @patch("backend.funds.service.fetch_yahoo_history")
     @patch("backend.funds.service.resolve_history")

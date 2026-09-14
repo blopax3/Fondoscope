@@ -33,6 +33,8 @@ export default function FundCard({
   const latestPoint = filteredSeries[filteredSeries.length - 1] ?? fund.history[fund.history.length - 1];
   const oldestPoint = filteredSeries[0];
   const change = computeChange(filteredSeries);
+  const provider = fund.metadata?.provider === "yahoo" ? "Yahoo Finance" : "Morningstar";
+  const latestHistoryDate = fund.metadata?.latestHistoryDate;
 
   return (
     <article className={loading ? "fund-card fund-card--loading" : "fund-card"}>
@@ -40,11 +42,15 @@ export default function FundCard({
         <div>
           <h2>{getFundLabel(fund)}</h2>
           <p className="fund-card__identifier">{fund.isin}</p>
+          <p className="fund-card__data-status">
+            {provider}{latestHistoryDate ? ` · ${fundCard.updatedThrough(formatDateLabel(latestHistoryDate, language))}` : ""}
+          </p>
         </div>
         <div className="fund-card__meta">
           {currencyOptions && onCurrencyChange ? (
             <select
               className="fund-card__currency-select"
+              aria-label={`${fundCard.currencyLabel}: ${getFundLabel(fund)}`}
               value={fund.currency || "EUR"}
               onChange={(event) => onCurrencyChange(fund.isin, event.target.value)}
               disabled={loading}
@@ -84,7 +90,7 @@ export default function FundCard({
         </div>
       </div>
 
-      <div className="fund-card__chart">
+      <div className="fund-card__chart" role="img" aria-label={fundCard.chartLabel(getFundLabel(fund), rangeKey)}>
         {filteredSeries.length ? (
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={filteredSeries} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>

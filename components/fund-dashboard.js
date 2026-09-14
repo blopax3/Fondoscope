@@ -32,11 +32,19 @@ function buildEntriesFromQuery(query) {
   const currencies = (query.get("currencies") || "")
     .split(",")
     .map((item) => item.trim().toUpperCase());
-  return identifiers.map((identifier, index) => ({
-    isin: identifier,
-    currency: currencies[index] || (isYahooFundIdentifier(identifier) ? "AUTO" : "EUR"),
-    yahooSymbol: isYahooFundIdentifier(identifier) ? identifier : "",
-  }));
+  return identifiers.map((identifier, index) => {
+    const fallbackCurrency = isYahooFundIdentifier(identifier) ? "AUTO" : "EUR";
+    const requestedCurrency = currencies[index];
+    const currency = CURRENCY_OPTIONS.some((option) => option.value === requestedCurrency) &&
+      (requestedCurrency !== "AUTO" || isYahooFundIdentifier(identifier))
+      ? requestedCurrency
+      : fallbackCurrency;
+    return {
+      isin: identifier,
+      currency,
+      yahooSymbol: isYahooFundIdentifier(identifier) ? identifier : "",
+    };
+  });
 }
 
 function normalizeRange(value) {
@@ -69,8 +77,11 @@ export default function FundDashboard({ language = "en" }) {
   const [loading, setLoading] = useState(false);
   const [reloadingIsin, setReloadingIsin] = useState(null);
   const initializedFromUrl = useRef(false);
+  const loadAbortControllerRef = useRef(null);
+  const reloadAbortControllersRef = useRef(new Map());
   const portfolioNameInputRef = useRef(null);
   const [theme, setTheme] = useState("dark");
+  const [shareStatus, setShareStatus] = useState("");
   const { portfolios, savePortfolio, removePortfolio } = useSavedPortfolios();
   const totalInputFunds = useMemo(() => parseFundIdentifiers(inputValue).length, [inputValue]);
   const overflowFundsCount = Math.max(totalInputFunds - MAX_FUND_ENTRIES, 0);
@@ -105,21 +116,28 @@ export default function FundDashboard({ language = "en" }) {
   }
 
   const loadFunds = useCallback(async (entries) => {
+    loadAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortControllerRef.current = controller;
     setLoading(true);
     setRequestError("");
 
     try {
-      const payload = await fetchFunds(entries, language);
+      const payload = await fetchFunds(entries, language, controller.signal);
       setFunds(payload.funds || []);
       setSelectedFunds((payload.funds || []).map((fund) => fund.isin));
       setErrors(payload.errors || []);
     } catch (error) {
+      if (error.name === "AbortError") return;
       setFunds([]);
       setSelectedFunds([]);
       setErrors([]);
       setRequestError(error.message || dashboard.loadError);
     } finally {
-      setLoading(false);
+      if (loadAbortControllerRef.current === controller) {
+        loadAbortControllerRef.current = null;
+        setLoading(false);
+      }
     }
   }, [dashboard.loadError, language]);
 
@@ -141,6 +159,14 @@ export default function FundDashboard({ language = "en" }) {
     }
   }, [loadFunds]);
 
+  useEffect(() => () => {
+    const loadController = loadAbortControllerRef.current;
+    loadAbortControllerRef.current = null;
+    loadController?.abort();
+    reloadAbortControllersRef.current.forEach((controller) => controller.abort());
+    reloadAbortControllersRef.current.clear();
+  }, []);
+
   useEffect(() => {
     const nextTheme = resolveInitialTheme();
     setTheme(nextTheme);
@@ -153,6 +179,7 @@ export default function FundDashboard({ language = "en" }) {
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
+    setShareStatus("");
 
     if (fundEntries.length) {
       query.set("identifiers", fundEntries.map((entry) => entry.isin).join(","));
@@ -174,10 +201,13 @@ export default function FundDashboard({ language = "en" }) {
   }, [fundEntries, rangeKey]);
 
   async function reloadFund(isin, currency) {
+    reloadAbortControllersRef.current.get(isin)?.abort();
+    const controller = new AbortController();
+    reloadAbortControllersRef.current.set(isin, controller);
     setReloadingIsin(isin);
     try {
       const yahooSymbol = fundEntries.find((entry) => entry.isin === isin)?.yahooSymbol || "";
-      const payload = await fetchFunds([{ isin, currency, yahooSymbol }], language);
+      const payload = await fetchFunds([{ isin, currency, yahooSymbol }], language, controller.signal);
       const newFund = (payload.funds || [])[0];
       if (newFund) {
         setFunds((current) =>
@@ -191,9 +221,13 @@ export default function FundDashboard({ language = "en" }) {
         ]);
       }
     } catch (error) {
+      if (error.name === "AbortError") return;
       setRequestError(error.message || dashboard.reloadError);
     } finally {
-      setReloadingIsin(null);
+      if (reloadAbortControllersRef.current.get(isin) === controller) {
+        reloadAbortControllersRef.current.delete(isin);
+        setReloadingIsin(null);
+      }
     }
   }
 
@@ -298,6 +332,17 @@ export default function FundDashboard({ language = "en" }) {
     );
   }
 
+  async function handleShareComparison() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setShareStatus(dashboard.shareSuccess);
+      setRequestError("");
+    } catch {
+      setShareStatus("");
+      setRequestError(dashboard.shareError);
+    }
+  }
+
   return (
     <main className="workspace">
       <section className="workspace__masthead">
@@ -309,15 +354,21 @@ export default function FundDashboard({ language = "en" }) {
         </header>
 
         <div className="workspace__masthead-side">
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={() => setTheme(nextTheme)}
-            aria-label={dashboard.themeToggleLabel(nextTheme)}
-            title={dashboard.themeToggleLabel(nextTheme)}
-          >
-            {dashboard.themeToggleShort(nextTheme)}
-          </button>
+          <div className="workspace__actions">
+            <button type="button" className="btn btn--secondary" onClick={handleShareComparison} disabled={!fundEntries.length || invalidIdentifiers.length > 0 || overflowFundsCount > 0}>
+              {dashboard.shareButton}
+            </button>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setTheme(nextTheme)}
+              aria-label={dashboard.themeToggleLabel(nextTheme)}
+              title={dashboard.themeToggleLabel(nextTheme)}
+            >
+              {dashboard.themeToggleShort(nextTheme)}
+            </button>
+            <span className="share-status" aria-live="polite">{shareStatus}</span>
+          </div>
 
           <dl className="workspace__summary" aria-label={language === "es" ? "Resumen" : "Summary"}>
             <div className="workspace__summary-item">
@@ -376,7 +427,7 @@ export default function FundDashboard({ language = "en" }) {
                             value={entry.currency}
                             onChange={(event) => handleCurrencyChange(entry.isin, event.target.value)}
                           >
-                            {CURRENCY_OPTIONS.map((opt) => (
+                            {CURRENCY_OPTIONS.filter((opt) => opt.value !== "AUTO" || isYahooFundIdentifier(entry.isin)).map((opt) => (
                               <option key={opt.value} value={opt.value}>
                                 {opt.label}
                               </option>
@@ -387,6 +438,7 @@ export default function FundDashboard({ language = "en" }) {
                             className="fund-entry__remove"
                             onClick={() => handleRemoveEntry(entry.isin)}
                             title={dashboard.removeTitle}
+                            aria-label={`${dashboard.removeTitle}: ${entry.isin}`}
                           >
                             ×
                           </button>
@@ -497,7 +549,7 @@ export default function FundDashboard({ language = "en" }) {
             <div className="toolbar">
               <div className="toolbar__left">
                 <ViewSwitcher language={language} activeView={activeView} onChange={setActiveView} />
-                <RangeSelector rangeKey={rangeKey} onSelect={setRangeKey} />
+                <RangeSelector language={language} rangeKey={rangeKey} onSelect={setRangeKey} />
               </div>
               <div className="toolbar__stats">
                 <span>{dashboard.statsFunds(stats.funds)}</span>
@@ -514,6 +566,8 @@ export default function FundDashboard({ language = "en" }) {
               </div>
             </div>
           ) : null}
+
+          {hasResults ? <p className="analysis-disclosure">{dashboard.returnDisclosure}</p> : null}
 
           {showLoadingState ? (
             <LoadingState language={language} variant={activeView === "compare" ? "compare" : "cards"} />
@@ -536,7 +590,7 @@ export default function FundDashboard({ language = "en" }) {
                     fund={fund}
                     rangeKey={rangeKey}
                     loading={loading || reloadingIsin === fund.isin}
-                    currencyOptions={CURRENCY_OPTIONS}
+                    currencyOptions={CURRENCY_OPTIONS.filter((option) => option.value !== "AUTO" || isYahooFundIdentifier(fund.isin))}
                     onCurrencyChange={handleFundCurrencyChange}
                   />
                 ))}

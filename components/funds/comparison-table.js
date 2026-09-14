@@ -55,9 +55,9 @@ function ComparisonTable({ language = "en", funds, rangeKey }) {
         <table className="comparison-table">
           <thead>
             <tr>
-              <th>{comparisonTable.metric}</th>
+              <th scope="col">{comparisonTable.metric}</th>
               {funds.map((fund) => (
-                <th key={fund.isin}>{getFundDisplayName(fund)}</th>
+                <th scope="col" key={fund.isin}>{getFundDisplayName(fund)}</th>
               ))}
             </tr>
           </thead>
@@ -71,7 +71,7 @@ function ComparisonTable({ language = "en", funds, rangeKey }) {
 
               {section.rows.map((row) => (
                 <tr key={row.label}>
-                  <th>{row.label}</th>
+                  <th scope="row">{row.label}</th>
                   {row.cells.map((cell, index) => (
                     <td key={`${funds[index].isin}-${row.label}`}>
                       <span className={cell.tone ?? undefined}>{cell.text}</span>
