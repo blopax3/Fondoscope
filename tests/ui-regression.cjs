@@ -30,16 +30,31 @@ async function main() {
         })),
       })) } });
     });
+    await page.route('**/api/search?**', async (route) => {
+      const query = new URL(route.request().url()).searchParams.get('q');
+      const index = Number(query.replace('fund ', ''));
+      const yahoo = query === 'Apple';
+      await route.fulfill({ json: { results: [{
+        identifier: yahoo ? 'AAPL' : isins[index],
+        name: yahoo ? 'Apple Inc.' : `Fondo de prueba ${index + 1}`,
+        type: yahoo ? 'EQUITY' : 'FUND',
+        currency: yahoo ? '' : 'EUR',
+        exchange: yahoo ? 'NASDAQ' : '',
+        provider: yahoo ? 'yahoo' : 'morningstar',
+      }] } });
+    });
     await page.goto('http://127.0.0.1:3000');
-    const input = page.locator('#fund-identifiers');
+    const input = page.locator('#asset-search');
     const submit = page.getByRole('button', { name: 'Consultar', exact: true });
-    for (const invalid of ['https://www.morningstar.es/0P0001CLDK', 'IE00B4L5Y984']) {
-      await input.fill(invalid);
-      assert.equal(await submit.isDisabled(), true);
+    for (let index = 0; index < 7; index += 1) {
+      await input.fill(`fund ${index}`);
+      await page.getByRole('option').click();
     }
-    await input.fill([isins.slice(0, 7), 'aapl'].flat().join('\n'));
-    await page.locator('.fund-entry').last().waitFor();
+    await input.fill('Apple');
+    await page.getByRole('option').waitFor();
+    await input.press('Enter');
     await page.waitForFunction(() => document.querySelectorAll('.fund-entry').length === 8);
+    assert.equal(await input.isDisabled(), true);
     await submit.click();
     await page.locator('.fund-entry__source').first().waitFor();
     assert.equal(submitted.entries[7].isin, 'AAPL');
@@ -52,7 +67,7 @@ async function main() {
     assert.equal('currency' in saved[0].entries[7], false);
     await page.reload();
     await page.locator('.fund-entry__source').first().waitFor();
-    assert.equal(await page.locator('#fund-identifiers').inputValue(), [...isins.slice(0, 7), 'AAPL'].join('\n'));
+    assert.equal(await page.locator('.fund-entry').count(), 8);
     await page.getByRole('button', { name: 'Comparar fondos', exact: true }).click();
     const scroller = page.locator('.correlation-matrix-panel__scroller');
     await scroller.scrollIntoViewIfNeeded();
@@ -88,7 +103,7 @@ async function main() {
     assert.ok(stickyWidth <= 160);
     await scroller.screenshot({ path: '/tmp/fondoscope-correlation-mobile.png' });
     assert.deepEqual(errors, []);
-    console.log('UI OK: mixed ISIN/Yahoo input, validation, portfolio/URL persistence, 8-asset matrix hover and scroll, both themes, mobile overflow.');
+    console.log('UI OK: asset search, keyboard selection, Morningstar/Yahoo routing, portfolio/URL persistence, matrix hover and mobile overflow.');
   } finally {
     await browser.close();
   }

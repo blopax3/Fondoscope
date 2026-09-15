@@ -7,7 +7,7 @@ import LoadingState from "./funds/loading-state";
 import RangeSelector from "./funds/range-selector";
 import ViewSwitcher from "./funds/view-switcher";
 import { useSavedPortfolios } from "./use-saved-portfolios";
-import { fetchFunds, getInvalidFundIdentifiers, isYahooFundIdentifier, MAX_FUND_ENTRIES, parseFundIdentifiers, RANGE_OPTIONS } from "../lib/fund-data";
+import { fetchAssetSearch, fetchFunds, isYahooFundIdentifier, MAX_FUND_ENTRIES, parseFundIdentifiers, RANGE_OPTIONS } from "../lib/fund-data";
 import { getI18n } from "../lib/i18n";
 
 function buildEntriesFromQuery(query) {
@@ -40,8 +40,13 @@ function resolveInitialTheme() {
 
 export default function FundDashboard({ language = "en" }) {
   const { dashboard } = getI18n(language);
-  const [inputValue, setInputValue] = useState("");
   const [fundEntries, setFundEntries] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [rangeKey, setRangeKey] = useState("1Y");
   const [activeView, setActiveView] = useState("cards");
   const [funds, setFunds] = useState([]);
@@ -51,28 +56,13 @@ export default function FundDashboard({ language = "en" }) {
   const [loading, setLoading] = useState(false);
   const initializedFromUrl = useRef(false);
   const loadAbortControllerRef = useRef(null);
+  const searchAbortControllerRef = useRef(null);
   const portfolioNameInputRef = useRef(null);
   const [theme, setTheme] = useState("dark");
   const [shareStatus, setShareStatus] = useState("");
   const { portfolios, savePortfolio, removePortfolio } = useSavedPortfolios();
-  const totalInputFunds = useMemo(() => parseFundIdentifiers(inputValue).length, [inputValue]);
-  const overflowFundsCount = Math.max(totalInputFunds - MAX_FUND_ENTRIES, 0);
-  const invalidIdentifiers = useMemo(() => getInvalidFundIdentifiers(inputValue), [inputValue]);
-
-  const syncEntries = useCallback((text) => {
-    const identifiers = parseFundIdentifiers(text, MAX_FUND_ENTRIES);
-    setFundEntries(identifiers.map((identifier) => ({
-      isin: identifier,
-      yahooSymbol: isYahooFundIdentifier(identifier) ? identifier : "",
-    })));
-  }, []);
-
   function handleRemoveEntry(isin) {
     setFundEntries((current) => current.filter((entry) => entry.isin !== isin));
-    setInputValue((current) => {
-      const identifiers = parseFundIdentifiers(current).filter((item) => item !== isin);
-      return identifiers.join("\n");
-    });
   }
 
   const loadFunds = useCallback(async (entries) => {
@@ -114,16 +104,52 @@ export default function FundDashboard({ language = "en" }) {
 
     if (entriesFromQuery.length) {
       setFundEntries(entriesFromQuery);
-      setInputValue(entriesFromQuery.map((entry) => entry.isin).join("\n"));
       loadFunds(entriesFromQuery);
     }
   }, [loadFunds]);
 
   useEffect(() => () => {
     const loadController = loadAbortControllerRef.current;
+    const searchController = searchAbortControllerRef.current;
     loadAbortControllerRef.current = null;
+    searchAbortControllerRef.current = null;
     loadController?.abort();
+    searchController?.abort();
   }, []);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    searchAbortControllerRef.current?.abort();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      setSearchError("");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
+    setSearchLoading(true);
+    setSearchError("");
+    const timeout = window.setTimeout(async () => {
+      try {
+        setSearchResults(await fetchAssetSearch(query, language, controller.signal));
+        setActiveSearchIndex(0);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setSearchResults([]);
+          setSearchError(dashboard.searchError);
+        }
+      } finally {
+        if (searchAbortControllerRef.current === controller) setSearchLoading(false);
+      }
+    }, 200);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [dashboard.searchError, language, searchQuery]);
 
   useEffect(() => {
     const nextTheme = resolveInitialTheme();
@@ -165,10 +191,6 @@ export default function FundDashboard({ language = "en" }) {
   }, [fundEntries, rangeKey]);
 
   function handleSaveComparison() {
-    if (invalidIdentifiers.length || overflowFundsCount) {
-      setRequestError(dashboard.portfolioSaveError);
-      return;
-    }
     if (!fundEntries.length) {
       setRequestError(dashboard.missingIsin);
       return;
@@ -198,7 +220,6 @@ export default function FundDashboard({ language = "en" }) {
     }
 
     setFundEntries(selected.entries);
-    setInputValue(selected.entries.map((entry) => entry.isin).join("\n"));
     loadFunds(selected.entries);
     setRequestError("");
   }
@@ -232,21 +253,49 @@ export default function FundDashboard({ language = "en" }) {
 
   function handleSubmit(event) {
     event.preventDefault();
-
-    if (invalidIdentifiers.length || overflowFundsCount) return;
-    const entries = parseFundIdentifiers(inputValue, MAX_FUND_ENTRIES).map((isin) => (
-      fundEntries.find((entry) => entry.isin === isin) || {
-        isin,
-        yahooSymbol: isYahooFundIdentifier(isin) ? isin : "",
-      }
-    ));
-    if (!entries.length) {
+    if (!fundEntries.length) {
       setRequestError(dashboard.missingIsin);
       return;
     }
+    loadFunds(fundEntries);
+  }
 
-    setFundEntries(entries);
-    loadFunds(entries);
+  const availableSearchResults = searchResults.filter(
+    (result) => !fundEntries.some((entry) => entry.isin === result.identifier)
+  );
+
+  function handleAddSearchResult(result) {
+    if (!result || fundEntries.length >= MAX_FUND_ENTRIES) return;
+    setFundEntries((current) => [...current, {
+      isin: result.identifier,
+      yahooSymbol: result.provider === "yahoo" ? result.identifier : "",
+      name: result.name,
+      provider: result.provider,
+    }]);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchOpen(false);
+    setRequestError("");
+  }
+
+  function handleSearchKeyDown(event) {
+    if (!searchOpen) return;
+    if (event.key === "Escape") {
+      setSearchOpen(false);
+      return;
+    }
+    if (!availableSearchResults.length) {
+      if (event.key === "Enter") event.preventDefault();
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      setActiveSearchIndex((current) => (current + direction + availableSearchResults.length) % availableSearchResults.length);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      handleAddSearchResult(availableSearchResults[activeSearchIndex]);
+    }
   }
 
   function handleToggleFund(isin) {
@@ -278,7 +327,7 @@ export default function FundDashboard({ language = "en" }) {
 
         <div className="workspace__masthead-side">
           <div className="workspace__actions">
-            <button type="button" className="btn btn--secondary btn--share" onClick={handleShareComparison} disabled={!fundEntries.length || invalidIdentifiers.length > 0 || overflowFundsCount > 0}>
+            <button type="button" className="btn btn--secondary btn--share" onClick={handleShareComparison} disabled={!fundEntries.length}>
               <span className={!shareStatus ? "is-visible" : ""}>{dashboard.shareButton}</span>
               <span className={shareStatus ? "is-visible" : ""} aria-live="polite">{shareStatus}</span>
             </button>
@@ -320,24 +369,69 @@ export default function FundDashboard({ language = "en" }) {
 
             <div className="input-bar__body">
               <div className="input-bar__editor">
-                <label htmlFor="fund-identifiers">{dashboard.identifierLabel}</label>
-                <textarea
-                  id="fund-identifiers"
-                  aria-invalid={invalidIdentifiers.length > 0}
-                  aria-describedby="fund-input-feedback"
-                  value={inputValue}
-                  onChange={(event) => {
-                    setInputValue(event.target.value);
-                    syncEntries(event.target.value);
+                <label htmlFor="asset-search">{dashboard.searchLabel}</label>
+                <div
+                  className="asset-search"
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false);
                   }}
-                  placeholder={dashboard.placeholder}
-                  rows={3}
-                />
+                >
+                  <input
+                    id="asset-search"
+                    type="search"
+                    role="combobox"
+                    autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-controls="asset-search-results"
+                    aria-expanded={searchOpen && searchQuery.trim().length >= 2}
+                    aria-activedescendant={searchOpen && availableSearchResults.length ? `asset-search-result-${activeSearchIndex}` : undefined}
+                    value={searchQuery}
+                    disabled={fundEntries.length >= MAX_FUND_ENTRIES}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setSearchOpen(true);
+                    }}
+                    onFocus={() => setSearchOpen(true)}
+                    onKeyDown={handleSearchKeyDown}
+                    placeholder={dashboard.searchPlaceholder}
+                  />
+
+                  {searchOpen && searchQuery.trim().length >= 2 && (
+                    <div id="asset-search-results" className="asset-search__results" role="listbox">
+                      {searchLoading ? (
+                        <p className="asset-search__status">{dashboard.searching}</p>
+                      ) : searchError ? (
+                        <p className="asset-search__status asset-search__status--error">{searchError}</p>
+                      ) : availableSearchResults.length ? (
+                        availableSearchResults.map((result, index) => (
+                          <button
+                            id={`asset-search-result-${index}`}
+                            key={`${result.provider}-${result.identifier}`}
+                            type="button"
+                            role="option"
+                            aria-selected={index === activeSearchIndex}
+                            className="asset-search__result"
+                            onMouseEnter={() => setActiveSearchIndex(index)}
+                            onClick={() => handleAddSearchResult(result)}
+                          >
+                            <span className="asset-search__result-name">{result.name}</span>
+                            <span className="asset-search__result-meta">
+                              {[result.identifier, result.type, result.exchange, result.currency, result.provider === "yahoo" ? "Yahoo Finance" : "Morningstar"].filter(Boolean).join(" · ")}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="asset-search__status">{dashboard.noSearchResults}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {fundEntries.length > 0 && (
                   <div className="fund-entries">
                     {fundEntries.map((entry) => {
-                      const fundName = fundNameMap.get(entry.isin);
+                      const fundName = fundNameMap.get(entry.isin) || entry.name;
+                      const provider = funds.find((fund) => fund.isin === entry.isin)?.metadata?.provider || entry.provider;
                       return (
                         <div key={entry.isin} className="fund-entry">
                           <div className="fund-entry__info">
@@ -353,9 +447,9 @@ export default function FundDashboard({ language = "en" }) {
                           >
                             ×
                           </button>
-                          {funds.find((fund) => fund.isin === entry.isin)?.metadata?.provider && (
+                          {provider && (
                             <span className="fund-entry__source">
-                              {dashboard.sourceLabel}: {funds.find((fund) => fund.isin === entry.isin)?.metadata.provider === "yahoo" ? "Yahoo Finance" : "Morningstar"}
+                              {dashboard.sourceLabel}: {provider === "yahoo" ? "Yahoo Finance" : "Morningstar"}
                             </span>
                           )}
                         </div>
@@ -366,16 +460,12 @@ export default function FundDashboard({ language = "en" }) {
 
                 <div className="input-bar__actions">
                   <p id="fund-input-feedback" className="input-bar__hint" aria-live="polite">
-                    {invalidIdentifiers.length
-                      ? `${dashboard.invalidIdentifiers}: ${invalidIdentifiers.join(", ")}`
-                      : overflowFundsCount
-                      ? dashboard.maxFundsHint(MAX_FUND_ENTRIES, overflowFundsCount)
-                      : fundEntries.length
+                    {fundEntries.length
                       ? dashboard.selectedFundsHint(fundEntries.length)
                       : dashboard.emptyHint
                     }
                   </p>
-                  <button type="submit" className="btn btn--primary" disabled={loading || !totalInputFunds || invalidIdentifiers.length > 0 || overflowFundsCount > 0}>
+                  <button type="submit" className="btn btn--primary" disabled={loading || !fundEntries.length}>
                     {loading ? dashboard.loadingButton : dashboard.submitButton}
                   </button>
                 </div>
