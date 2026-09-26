@@ -46,6 +46,12 @@ def _session() -> requests.Session:
     return session
 
 
+def _localized_session(language: str) -> requests.Session:
+    session = _session()
+    session.headers["Accept-Language"] = "es-ES,es;q=0.9" if normalize_language(language) == "es" else "en-GB,en;q=0.9"
+    return session
+
+
 def _parse_security_search_response(payload: object, isin: str) -> list[SearchCandidate]:
     if not isinstance(payload, dict) or not isinstance(payload.get("rows"), list):
         raise ValueError("Morningstar search response is missing rows")
@@ -75,7 +81,7 @@ def search_candidates(isin: str, timeout: int = 20, language: str = "en") -> lis
     # Use the same public Integrated Web Tools service as the history endpoint.
     url = "https://lt.morningstar.com/api/rest.svc/t92wz0sj7c/security/screener"
     try:
-        response = _session().get(url, params={
+        response = _localized_session(language).get(url, params={
             "page": 1,
             "pageSize": 100,
             "outputType": "json",
@@ -125,7 +131,7 @@ def fetch_history_by_id(
     if currency:
         params["currencyId"] = currency
 
-    response = _session().get(url, params=params, timeout=timeout)
+    response = _localized_session(language).get(url, params=params, timeout=timeout)
     response.raise_for_status()
     payload = response.json()
 

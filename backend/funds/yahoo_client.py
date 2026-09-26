@@ -22,7 +22,9 @@ def fetch_yahoo_history(symbol: str, *, start_date: str, currency: str,
     if not interval:
         raise YahooFinanceError("Frecuencia no compatible con Yahoo." if spanish else "Unsupported Yahoo frequency.")
     try:
-        response = _session().get(
+        session = _session()
+        session.headers["Accept-Language"] = "es-ES,es;q=0.9" if spanish else "en-GB,en;q=0.9"
+        response = session.get(
             f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(symbol, safe='')}",
             params={"period1": int(pd.Timestamp(start_date, tz="UTC").timestamp()),
                     "period2": int(datetime.now(UTC).timestamp()), "interval": interval},

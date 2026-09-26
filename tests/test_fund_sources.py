@@ -14,6 +14,12 @@ ISIN = "IE00B4L5Y983"
 
 
 class FundSourcesTest(unittest.TestCase):
+    def test_validation_errors_follow_requested_language(self):
+        with self.assertRaisesRegex(ValueError, r"^Invalid ISIN or Yahoo symbol:"):
+            normalize_entries({"entries": [{"isin": "bad/symbol"}]}, "en")
+        with self.assertRaisesRegex(ValueError, r"^ISIN o símbolo de Yahoo inválido:"):
+            normalize_entries({"entries": [{"isin": "bad/symbol"}]}, "es")
+
     def test_identifiers_are_not_extracted_from_urls_or_malformed_text(self):
         self.assertEqual(normalize_isin(" ie00b4l5y983 "), ISIN)
         for invalid in ["IE00B4L5Y984", "IE00-B4L5Y983", "0P0001CLDK", "F00000ABC",

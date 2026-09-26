@@ -6,8 +6,12 @@ export const dynamic = "force-dynamic";
 
 const HEADERS = {
   "User-Agent": "Mozilla/5.0",
-  "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
 };
+
+const languageHeaders = (language) => ({
+  ...HEADERS,
+  "Accept-Language": language === "es" ? "es-ES,es;q=0.9" : "en-GB,en;q=0.9",
+});
 
 async function searchMorningstar(query, language) {
   const params = new URLSearchParams({
@@ -21,7 +25,7 @@ async function searchMorningstar(query, language) {
     term: query,
   });
   const response = await fetch(`https://lt.morningstar.com/api/rest.svc/t92wz0sj7c/security/screener?${params}`, {
-    headers: { ...HEADERS, Referer: "https://www.morningstar.es/" },
+    headers: { ...languageHeaders(language), Referer: "https://www.morningstar.es/" },
     next: { revalidate: 300 },
     signal: AbortSignal.timeout(5000),
   });
@@ -40,10 +44,10 @@ async function searchMorningstar(query, language) {
   });
 }
 
-async function searchYahoo(query) {
+async function searchYahoo(query, language) {
   const params = new URLSearchParams({ q: query, quotesCount: "8", newsCount: "0" });
   const response = await fetch(`https://query2.finance.yahoo.com/v1/finance/search?${params}`, {
-    headers: HEADERS,
+    headers: languageHeaders(language),
     next: { revalidate: 300 },
     signal: AbortSignal.timeout(5000),
   });
@@ -70,7 +74,7 @@ export async function GET(request) {
     return Response.json({ error: language === "es" ? "La búsqueda debe tener entre 2 y 80 caracteres." : "Search must be between 2 and 80 characters." }, { status: 400 });
   }
 
-  const responses = await Promise.allSettled([searchMorningstar(query, language), searchYahoo(query)]);
+  const responses = await Promise.allSettled([searchMorningstar(query, language), searchYahoo(query, language)]);
   const results = responses.flatMap((response) => response.status === "fulfilled" ? response.value : []);
   if (!results.length && responses.every((response) => response.status === "rejected")) {
     return Response.json({ error: language === "es" ? "No se pudo completar la búsqueda." : "Asset search failed." }, { status: 502 });

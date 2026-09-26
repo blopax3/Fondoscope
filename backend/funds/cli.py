@@ -25,7 +25,8 @@ def normalize_identifier(value: object) -> str:
     return normalize_yahoo_symbol(raw_value)
 
 
-def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
+def normalize_entries(payload: dict[str, object], language: str = "en") -> list[dict[str, str]]:
+    spanish = normalize_language(language) == "es"
     entries = payload.get("entries", [])
     if isinstance(entries, list) and entries:
         normalized_entries: list[dict[str, str]] = []
@@ -33,7 +34,7 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
 
         for entry in entries:
             if not isinstance(entry, dict):
-                raise ValueError("Invalid fund entry / Entrada de fondo inválida.")
+                raise ValueError("Entrada de fondo inválida." if spanish else "Invalid fund entry.")
 
             raw_identifier = entry.get("identifier", entry.get("isin", ""))
             raw_identifier_text = raw_identifier.strip().upper() if isinstance(raw_identifier, str) else ""
@@ -41,7 +42,8 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
             direct_symbol = "" if isin or ISIN_PATTERN.fullmatch(raw_identifier_text) else normalize_yahoo_symbol(raw_identifier_text)
             identifier = isin or direct_symbol
             if not identifier:
-                raise ValueError("Invalid ISIN or Yahoo symbol / ISIN o símbolo de Yahoo inválido: " + str(raw_identifier))
+                message = "ISIN o símbolo de Yahoo inválido: " if spanish else "Invalid ISIN or Yahoo symbol: "
+                raise ValueError(message + str(raw_identifier))
             if identifier in seen:
                 continue
 
@@ -50,11 +52,12 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
             currency = currency_value.strip().upper() if isinstance(currency_value, str) else "AUTO"
             currency = currency or "AUTO"
             if currency not in SUPPORTED_CURRENCIES:
-                raise ValueError("Unsupported currency / Divisa no compatible: " + currency)
+                message = "Divisa no compatible: " if spanish else "Unsupported currency: "
+                raise ValueError(message + currency)
             raw_symbol = direct_symbol or entry.get("yahooSymbol", "")
             symbol = normalize_yahoo_symbol(raw_symbol)
             if raw_symbol and not symbol:
-                raise ValueError("Invalid Yahoo symbol / Símbolo de Yahoo inválido.")
+                raise ValueError("Símbolo de Yahoo inválido." if spanish else "Invalid Yahoo symbol.")
             normalized_entries.append({"isin": identifier, "currency": currency, "yahooSymbol": symbol})
 
         return normalized_entries
@@ -67,14 +70,16 @@ def normalize_entries(payload: dict[str, object]) -> list[dict[str, str]]:
     global_currency = global_currency_value.strip().upper() if isinstance(global_currency_value, str) else "AUTO"
     global_currency = global_currency or "AUTO"
     if global_currency not in SUPPORTED_CURRENCIES:
-        raise ValueError("Unsupported currency / Divisa no compatible: " + global_currency)
+        message = "Divisa no compatible: " if spanish else "Unsupported currency: "
+        raise ValueError(message + global_currency)
     normalized_entries = []
     seen: set[str] = set()
 
     for isin_value in isins:
         isin = normalize_identifier(isin_value)
         if not isin:
-            raise ValueError("Invalid ISIN / ISIN inválido: " + str(isin_value))
+            message = "ISIN inválido: " if spanish else "Invalid ISIN: "
+            raise ValueError(message + str(isin_value))
         if isin in seen:
             continue
         seen.add(isin)
@@ -148,8 +153,9 @@ def load_fund_entry(
 
 def build_response(payload: dict[str, object]) -> dict[str, object]:
     if not isinstance(payload, dict):
-        raise ValueError("Expected a JSON object / Se esperaba un objeto JSON.")
+        raise ValueError("Expected a JSON object.")
     language = normalize_language(str(payload.get("language", "en")))
+    spanish = language == "es"
     start_date = payload.get("startDate", "2000-01-01")
     start_date = start_date if isinstance(start_date, str) else "2000-01-01"
     frequency = payload.get("frequency", "daily")
@@ -157,14 +163,14 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
     try:
         parsed_start_date = date.fromisoformat(start_date)
     except ValueError as error:
-        raise ValueError("Invalid start date / Fecha inicial inválida.") from error
+        raise ValueError("Fecha inicial inválida." if spanish else "Invalid start date.") from error
     if parsed_start_date > date.today():
-        raise ValueError("Start date cannot be in the future / La fecha inicial no puede ser futura.")
+        raise ValueError("La fecha inicial no puede ser futura." if spanish else "Start date cannot be in the future.")
     if frequency not in SUPPORTED_FREQUENCIES:
-        raise ValueError("Unsupported frequency / Frecuencia no compatible.")
-    entries = normalize_entries(payload)
+        raise ValueError("Frecuencia no compatible." if spanish else "Unsupported frequency.")
+    entries = normalize_entries(payload, language)
     if len(entries) > 8:
-        raise ValueError("Maximum 8 funds / Máximo 8 fondos.")
+        raise ValueError("Máximo 8 fondos." if spanish else "Maximum 8 funds.")
 
     if not entries:
         raise ValueError(

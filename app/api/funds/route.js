@@ -25,6 +25,7 @@ async function forwardToPythonFunction(request, body) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Accept-Language": language === "es" ? "es-ES" : "en-GB",
     },
     body: JSON.stringify(body),
     cache: "no-store",
