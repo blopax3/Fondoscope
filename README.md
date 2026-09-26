@@ -8,11 +8,11 @@ Fondoscope searches for assets by name, retrieves their historical data from Mor
 
 <p align="center">
   <a href="https://fondoscope-plum.vercel.app/">
-    <img src="./docs/images/screenshot.jpeg" alt="Fondoscope comparison view with a performance chart, metrics table, and correlation matrix" width="100%">
+    <img src="./docs/images/screenshot.png" alt="Fondoscope fund comparison with a performance chart, metrics table, and correlation matrix" width="100%">
   </a>
 </p>
 
-<p align="center"><em>Current interface: one-year comparison using reproducible demo data, risk metrics, and correlation.</em></p>
+<p align="center"><em>One-year fund comparison with cumulative performance, risk metrics, and correlation.</em></p>
 
 ## Features
 
