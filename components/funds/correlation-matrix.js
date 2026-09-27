@@ -125,9 +125,9 @@ function getCorrelationTitle(rowFund, columnFund, cell, isDiagonal, language, co
   return `${label}: ${formatCorrelation(cell.value, language, copy.noData)} | ${getCorrelationDescriptor(cell.value, isDiagonal, copy)} (${copy.sharedIntervals(cell.intervalCount)})`;
 }
 
-function CorrelationMatrix({ language = "en", funds, rangeKey }) {
+function CorrelationMatrix({ language = "en", funds, rangeKey, commonPeriod }) {
   const { correlation } = getI18n(language);
-  const matrix = useMemo(() => buildCorrelationMatrix(funds, rangeKey), [funds, rangeKey]);
+  const matrix = useMemo(() => buildCorrelationMatrix(funds, rangeKey, commonPeriod), [funds, rangeKey, commonPeriod]);
   const scrollerRef = useRef(null);
   const [isHorizontallyScrolled, setIsHorizontallyScrolled] = useState(false);
   const [highlightedRowIsin, setHighlightedRowIsin] = useState(null);

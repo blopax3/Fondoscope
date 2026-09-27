@@ -7,10 +7,21 @@ import LoadingState from "./funds/loading-state";
 import RangeSelector from "./funds/range-selector";
 import ViewSwitcher from "./funds/view-switcher";
 import { useSavedPortfolios } from "./use-saved-portfolios";
-import { fetchAssetSearch, fetchFunds, isYahooFundIdentifier, MAX_FUND_ENTRIES, parseFundIdentifiers, RANGE_OPTIONS } from "../lib/fund-data";
+import { fetchAssetSearch, fetchFunds, isYahooFundIdentifier, normalizeFundEntry, MAX_FUND_ENTRIES, parseFundIdentifiers, RANGE_OPTIONS } from "../lib/fund-data";
 import { getI18n } from "../lib/i18n";
 
 function buildEntriesFromQuery(query) {
+  if (query.has("entries")) {
+    try {
+      const entries = JSON.parse(query.get("entries"));
+      if (Array.isArray(entries) && entries.length <= MAX_FUND_ENTRIES) {
+        const normalized = entries.map(normalizeFundEntry);
+        if (normalized.every(Boolean) && new Set(normalized.map((entry) => entry.isin)).size === normalized.length) return normalized;
+      }
+    } catch {
+      // Older identifier-only links remain supported below.
+    }
+  }
   const identifiers = parseFundIdentifiers(
     query.get("identifiers") || query.get("isins") || "",
     MAX_FUND_ENTRIES
@@ -48,6 +59,7 @@ export default function FundDashboard({ language = "en" }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [rangeKey, setRangeKey] = useState("1Y");
+  const [commonPeriod, setCommonPeriod] = useState(true);
   const [activeView, setActiveView] = useState("cards");
   const [funds, setFunds] = useState([]);
   const [selectedFunds, setSelectedFunds] = useState([]);
@@ -101,6 +113,7 @@ export default function FundDashboard({ language = "en" }) {
     const entriesFromQuery = buildEntriesFromQuery(query);
     const queryRange = normalizeRange(query.get("range") || "1Y");
     setRangeKey(queryRange);
+    setCommonPeriod(query.get("common") !== "0");
 
     if (entriesFromQuery.length) {
       setFundEntries(entriesFromQuery);
@@ -173,22 +186,26 @@ export default function FundDashboard({ language = "en" }) {
 
     if (fundEntries.length) {
       query.set("identifiers", fundEntries.map((entry) => entry.isin).join(","));
+      query.set("entries", JSON.stringify(fundEntries.map(normalizeFundEntry)));
       query.set("range", rangeKey);
+      if (commonPeriod) query.delete("common"); else query.set("common", "0");
       query.delete("isins");
       query.delete("currencies");
       query.delete("yahooSymbols");
     } else {
       query.delete("identifiers");
+      query.delete("entries");
       query.delete("isins");
       query.delete("currencies");
       query.delete("yahooSymbols");
       query.delete("range");
+      query.delete("common");
     }
 
     const next = query.toString();
     const pathname = window.location.pathname;
     window.history.replaceState({}, "", next ? `${pathname}?${next}` : pathname);
-  }, [fundEntries, rangeKey]);
+  }, [fundEntries, rangeKey, commonPeriod]);
 
   function handleSaveComparison() {
     if (!fundEntries.length) {
@@ -199,7 +216,7 @@ export default function FundDashboard({ language = "en" }) {
     const fallbackName = `${dashboard.defaultPortfolioName} ${new Date().toLocaleDateString()}`;
     const rawPortfolioName = portfolioNameInputRef.current?.value || "";
     const targetName = rawPortfolioName.trim() || fallbackName;
-    const saved = savePortfolio(targetName, fundEntries);
+    const saved = savePortfolio(targetName, fundEntries, rangeKey, commonPeriod);
 
     if (!saved) {
       setRequestError(dashboard.portfolioSaveError);
@@ -220,6 +237,8 @@ export default function FundDashboard({ language = "en" }) {
     }
 
     setFundEntries(selected.entries);
+    setRangeKey(selected.rangeKey);
+    setCommonPeriod(selected.commonPeriod);
     loadFunds(selected.entries);
     setRequestError("");
   }
@@ -582,8 +601,10 @@ export default function FundDashboard({ language = "en" }) {
                 funds={funds}
                 selectedFunds={selectedFunds}
                 rangeKey={rangeKey}
+                commonPeriod={commonPeriod}
                 loading={loading}
                 onToggleFund={handleToggleFund}
+                onCommonPeriodChange={setCommonPeriod}
               />
             ) : (
               <section className="fund-grid">

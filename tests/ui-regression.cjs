@@ -27,7 +27,7 @@ async function main() {
         history: Array.from({ length: 100 }, (_, day) => ({
           date: new Date(Date.UTC(2026, 4, day + 1)).toISOString().slice(0, 10),
           price: 100 + day * 0.2 + Math.sin(day / (index + 1)),
-        })),
+        })).slice(index === 1 ? 20 : 0),
       })) } });
     });
     await page.route('**/api/search?**', async (route) => {
@@ -39,6 +39,7 @@ async function main() {
         name: yahoo ? 'Apple Inc.' : `Fondo de prueba ${index + 1}`,
         type: yahoo ? 'EQUITY' : 'FUND',
         currency: yahoo ? '' : 'EUR',
+        morningstarId: yahoo ? '' : `F00000000${index}`,
         exchange: yahoo ? 'NASDAQ' : '',
         provider: yahoo ? 'yahoo' : 'morningstar',
       }] } });
@@ -60,15 +61,24 @@ async function main() {
     assert.equal(submitted.entries[7].isin, 'AAPL');
     assert.equal(submitted.entries[7].yahooSymbol, 'AAPL');
     assert.equal('currency' in submitted.entries[7], false);
+    assert.equal(submitted.entries[0].morningstarId, 'F000000000');
     assert.match(await page.locator('.fund-entry__source').first().innerText(), /Yahoo Finance/);
     await page.getByRole('button', { name: 'Guardar comparación', exact: true }).click();
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('fondoscope.savedPortfolios.v1')));
     assert.equal(saved[0].entries[7].yahooSymbol, 'AAPL');
     assert.equal('currency' in saved[0].entries[7], false);
+    assert.equal(saved[0].entries[0].morningstarId, 'F000000000');
+    assert.equal(saved[0].entries[0].currency, 'EUR');
+    assert.equal(saved[0].rangeKey, '1Y');
+    assert.equal(saved[0].commonPeriod, true);
+    assert.equal(JSON.parse(new URL(page.url()).searchParams.get('entries'))[0].morningstarId, 'F000000000');
     await page.reload();
     await page.locator('.fund-entry__source').first().waitFor();
+    assert.equal(submitted.entries[0].morningstarId, 'F000000000');
     assert.equal(await page.locator('.fund-entry').count(), 8);
     await page.getByRole('button', { name: 'Comparar fondos', exact: true }).click();
+    assert.equal(await page.getByLabel('Periodo común').isChecked(), true);
+    assert.match(await page.locator('.comparison-period-coverage').innerText(), /21 may 2026/i);
     const scroller = page.locator('.correlation-matrix-panel__scroller');
     await scroller.scrollIntoViewIfNeeded();
     assert.equal(await page.locator('.correlation-matrix tbody td').count(), 64);

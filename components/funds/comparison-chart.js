@@ -20,6 +20,7 @@ import {
   formatPercent,
   FUND_COLORS,
   getFundDisplayName,
+  getSharedWindow,
 } from "../../lib/fund-data";
 import { getI18n } from "../../lib/i18n";
 
@@ -28,8 +29,10 @@ export default function ComparisonChart({
   funds,
   selectedFunds,
   rangeKey,
+  commonPeriod,
   loading,
   onToggleFund,
+  onCommonPeriodChange,
 }) {
   const { comparisonChart } = getI18n(language);
   const selectedFundsSet = useMemo(() => new Set(selectedFunds), [selectedFunds]);
@@ -42,9 +45,10 @@ export default function ComparisonChart({
     [funds, selectedFundsSet]
   );
   const chartData = useMemo(
-    () => buildComparisonSeries(funds, selectedFunds, rangeKey),
-    [funds, selectedFunds, rangeKey]
+    () => buildComparisonSeries(funds, selectedFunds, rangeKey, commonPeriod),
+    [funds, selectedFunds, rangeKey, commonPeriod]
   );
+  const sharedWindow = useMemo(() => commonPeriod ? getSharedWindow(visibleFunds, rangeKey) : null, [commonPeriod, visibleFunds, rangeKey]);
 
   return (
     <section className={loading ? "comparison-panel comparison-panel--loading" : "comparison-panel"}>
@@ -54,6 +58,18 @@ export default function ComparisonChart({
         </p>
         <div className="comparison-panel__range">{rangeKey}</div>
       </div>
+
+      <label className="comparison-period-toggle">
+        <input type="checkbox" checked={commonPeriod} onChange={(event) => onCommonPeriodChange(event.target.checked)} />
+        {comparisonChart.commonPeriod}
+      </label>
+      {commonPeriod && visibleFunds.length ? (
+        <p className="comparison-period-coverage">
+          {sharedWindow
+            ? comparisonChart.commonCoverage(formatDateLabel(sharedWindow.startDate, language), formatDateLabel(sharedWindow.endDate, language))
+            : comparisonChart.noCommonPeriod}
+        </p>
+      ) : null}
 
       <div className="comparison-selector">
         {funds.map((fund) => {
@@ -148,9 +164,9 @@ export default function ComparisonChart({
         )}
       </div>
 
-      {visibleFunds.length ? <ComparisonTable language={language} funds={visibleFunds} rangeKey={rangeKey} /> : null}
+      {visibleFunds.length ? <ComparisonTable language={language} funds={visibleFunds} rangeKey={rangeKey} commonPeriod={commonPeriod} /> : null}
 
-      {visibleFunds.length ? <CorrelationMatrix language={language} funds={visibleFunds} rangeKey={rangeKey} /> : null}
+      {visibleFunds.length ? <CorrelationMatrix language={language} funds={visibleFunds} rangeKey={rangeKey} commonPeriod={commonPeriod} /> : null}
 
       {loading ? (
         <div className="loading-overlay" aria-live="polite" aria-busy="true">

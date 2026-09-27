@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isYahooFundIdentifier, normalizeFundIdentifierToken, MAX_FUND_ENTRIES } from "../lib/fund-data";
+import { normalizeFundEntry, MAX_FUND_ENTRIES, RANGE_OPTIONS } from "../lib/fund-data";
 
 const STORAGE_KEY = "fondoscope.savedPortfolios.v1";
 
@@ -12,21 +12,7 @@ function normalizePortfolio(portfolio) {
 
   const name = typeof portfolio.name === "string" ? portfolio.name.trim() : "";
   const entries = Array.isArray(portfolio.entries)
-    ? portfolio.entries
-      .map((entry) => {
-        if (!entry || typeof entry !== "object") {
-          return null;
-        }
-
-        const isin = normalizeFundIdentifierToken(entry.isin);
-        const yahooSymbol = isYahooFundIdentifier(isin) ? isin : "";
-        if (!isin) {
-          return null;
-        }
-
-        return { isin, yahooSymbol };
-      })
-      .filter(Boolean)
+    ? portfolio.entries.map(normalizeFundEntry).filter(Boolean)
     : [];
 
   if (!name || !entries.length || entries.length !== portfolio.entries.length || entries.length > MAX_FUND_ENTRIES) {
@@ -37,6 +23,8 @@ function normalizePortfolio(portfolio) {
     id: typeof portfolio.id === "string" ? portfolio.id : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name,
     entries,
+    rangeKey: RANGE_OPTIONS.some((option) => option.key === portfolio.rangeKey) ? portfolio.rangeKey : "1Y",
+    commonPeriod: portfolio.commonPeriod !== false,
     createdAt: typeof portfolio.createdAt === "string" ? portfolio.createdAt : new Date().toISOString(),
   };
 }
@@ -71,18 +59,13 @@ export function useSavedPortfolios() {
     }
   }, []);
 
-  const savePortfolio = useCallback((name, entries) => {
+  const savePortfolio = useCallback((name, entries, rangeKey = "1Y", commonPeriod = true) => {
     const trimmedName = (name || "").trim();
     if (!trimmedName || !Array.isArray(entries) || !entries.length) {
       return false;
     }
 
-    const cleanEntries = entries
-      .map((entry) => ({
-        isin: normalizeFundIdentifierToken(entry?.isin),
-        yahooSymbol: isYahooFundIdentifier(entry?.isin) ? normalizeFundIdentifierToken(entry?.isin) : "",
-      }))
-      .filter((entry) => entry.isin);
+    const cleanEntries = entries.map(normalizeFundEntry).filter(Boolean);
 
     if (!cleanEntries.length || cleanEntries.length !== entries.length || cleanEntries.length > MAX_FUND_ENTRIES) {
       return false;
@@ -96,6 +79,8 @@ export function useSavedPortfolios() {
       id: existingIndex >= 0 ? next[existingIndex].id : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       name: trimmedName,
       entries: cleanEntries,
+      rangeKey,
+      commonPeriod,
       createdAt: existingIndex >= 0 ? next[existingIndex].createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

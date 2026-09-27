@@ -2269,6 +2269,26 @@ body {
   gap: 8px;
 }
 
+.comparison-period-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.84rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.comparison-period-toggle input {
+  accent-color: var(--accent);
+}
+
+.comparison-period-coverage {
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
 .comparison-chip {
   padding: 8px 10px;
   border-color: var(--border);

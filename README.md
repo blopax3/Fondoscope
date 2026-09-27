@@ -21,11 +21,11 @@ Fondoscope searches for assets by name, retrieves their historical data from Mor
 - Compare up to eight assets simultaneously in their native currencies.
 - Switch between `1M`, `6M`, `YTD`, `1Y`, `3Y`, `5Y`, `10Y`, and `MAX` time ranges.
 - Inspect each asset's price or NAV history, latest value, and change over the selected period.
-- Compare normalized cumulative percentage changes in an overlay chart.
+- Compare normalized cumulative percentage changes in an overlay chart, with an optional common period shared by all selected assets.
 - Review cumulative and annualized returns, CAGR, volatility, maximum drawdown, recovery time, and return-to-volatility ratio.
 - Explore Pearson correlations calculated from returns over shared dates.
-- Save frequently used portfolios in `localStorage`, with no account or database required.
-- Share comparisons through a URL that preserves the selected assets and time range.
+- Save frequently used portfolios in `localStorage`, including each asset's resolution details, time range, and comparison mode.
+- Share comparisons through a URL that preserves the selected assets, their resolution details, time range, and comparison mode.
 - Use light or dark themes, responsive layouts, and automatic English or Spanish localization based on browser settings.
 - See the data source, native currency, and latest available date for every asset.
 
@@ -93,6 +93,9 @@ Open [http://localhost:3000](http://localhost:3000). The first data request requ
 # Backend tests
 python -m unittest discover -s tests -p 'test_*.py'
 
+# Comparison and saved-entry checks
+node --experimental-default-type=module tests/fund-data.test.mjs
+
 # Lint and build the Next.js application
 pnpm check
 
@@ -120,7 +123,7 @@ docs/images/         Documentation screenshots
 - **Yahoo Finance** provides historical data for exchange-traded symbols, including stocks, ETFs, and indices.
 - Every asset is displayed in its native currency; Fondoscope does not perform currency conversion.
 - Yahoo data uses unadjusted closing prices and does not include dividends.
-- Comparisons are anchored to the latest date shared by all selected assets. If an exact observation is unavailable at a period boundary, the nearest one within seven days is used.
+- Common-period comparisons use the first and last dates shared by all selected assets inside the chosen range. The table displays the dates and number of observations used for each asset. With common period turned off, metrics use the nearest observation within seven days at a period boundary.
 - Volatility is annualized over 252 trading sessions, while correlation uses consecutive returns over shared intervals.
 
 ## Disclaimer

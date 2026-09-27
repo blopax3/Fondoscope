@@ -4,11 +4,11 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { buildComparisonMetrics, getFundDisplayName } from "../../lib/fund-data";
 import { getI18n } from "../../lib/i18n";
 
-function ComparisonTable({ language = "en", funds, rangeKey }) {
+function ComparisonTable({ language = "en", funds, rangeKey, commonPeriod }) {
   const { comparisonTable } = getI18n(language);
   const metrics = useMemo(
-    () => buildComparisonMetrics(funds, rangeKey, language),
-    [funds, language, rangeKey]
+    () => buildComparisonMetrics(funds, rangeKey, language, commonPeriod),
+    [funds, language, rangeKey, commonPeriod]
   );
   const scrollerRef = useRef(null);
   const [isHorizontallyScrolled, setIsHorizontallyScrolled] = useState(false);
