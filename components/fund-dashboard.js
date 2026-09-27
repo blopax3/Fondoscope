@@ -120,7 +120,7 @@ export default function FundDashboard({ language = "en" }) {
   useEffect(() => {
     const query = searchQuery.trim();
     searchAbortControllerRef.current?.abort();
-    if (query.length < 2) {
+    if (query.length < 3) {
       setSearchResults([]);
       setSearchLoading(false);
       setSearchError("");
@@ -269,6 +269,9 @@ export default function FundDashboard({ language = "en" }) {
     setFundEntries((current) => [...current, {
       isin: result.identifier,
       yahooSymbol: result.provider === "yahoo" ? result.identifier : "",
+      currency: result.provider === "morningstar" ? result.currency || "AUTO" : undefined,
+      morningstarId: result.provider === "morningstar" && result.currency ? result.morningstarId || "" : "",
+      morningstarName: result.provider === "morningstar" ? result.name : "",
       name: result.name,
       provider: result.provider,
     }]);
@@ -383,7 +386,7 @@ export default function FundDashboard({ language = "en" }) {
                     autoComplete="off"
                     aria-autocomplete="list"
                     aria-controls="asset-search-results"
-                    aria-expanded={searchOpen && searchQuery.trim().length >= 2}
+                    aria-expanded={searchOpen && searchQuery.trim().length >= 3}
                     aria-activedescendant={searchOpen && availableSearchResults.length ? `asset-search-result-${activeSearchIndex}` : undefined}
                     value={searchQuery}
                     disabled={fundEntries.length >= MAX_FUND_ENTRIES}
@@ -396,7 +399,7 @@ export default function FundDashboard({ language = "en" }) {
                     placeholder={dashboard.searchPlaceholder}
                   />
 
-                  {searchOpen && searchQuery.trim().length >= 2 && (
+                  {searchOpen && searchQuery.trim().length >= 3 && (
                     <div id="asset-search-results" className="asset-search__results" role="listbox">
                       {searchLoading ? (
                         <p className="asset-search__status">{dashboard.searching}</p>

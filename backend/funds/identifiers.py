@@ -2,6 +2,7 @@ import re
 
 ISIN_PATTERN = re.compile(r"[A-Z]{2}[A-Z0-9]{9}[0-9]")
 YAHOO_SYMBOL_PATTERN = re.compile(r"[A-Z0-9^][A-Z0-9.^=-]{0,31}")
+MORNINGSTAR_ID_PATTERN = re.compile(r"[A-Z0-9]{1,32}")
 
 
 def normalize_isin(value: object) -> str:
@@ -19,3 +20,8 @@ def normalize_isin(value: object) -> str:
 def normalize_yahoo_symbol(value: object) -> str:
     value = value.strip().upper() if isinstance(value, str) else ""
     return value if YAHOO_SYMBOL_PATTERN.fullmatch(value) else ""
+
+
+def normalize_morningstar_id(value: object) -> str:
+    value = value.strip().upper() if isinstance(value, str) else ""
+    return value if MORNINGSTAR_ID_PATTERN.fullmatch(value) else ""

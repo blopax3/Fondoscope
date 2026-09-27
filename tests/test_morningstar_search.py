@@ -43,6 +43,20 @@ class MorningstarSearchTest(unittest.TestCase):
         self.assertEqual(fetch.call_args.kwargs["currency"], "USD")
         self.assertEqual(metadata["resolved_currency"], "USD")
 
+    @patch("backend.funds.morningstar_client.fetch_history_by_id")
+    @patch("backend.funds.morningstar_client.search_candidates")
+    def test_search_result_id_skips_duplicate_resolution(self, search, fetch):
+        fetch.return_value = pd.DataFrame({"date": [pd.Timestamp("2026-01-02")], "price": [100]})
+
+        name, _, metadata = resolve_history(
+            ISIN, currency="EUR", frequency="daily", start_date="2000-01-01",
+            resolved_id="F00000WI0D", resolved_name="Azvalor Internacional FI",
+        )
+
+        search.assert_not_called()
+        self.assertEqual(name, "Azvalor Internacional FI")
+        self.assertEqual(metadata["resolved_id"], "F00000WI0D")
+
     @patch("backend.funds.morningstar_client._session")
     def test_empty_results_are_distinct_from_invalid_server_responses(self, session):
         response = session.return_value.get.return_value

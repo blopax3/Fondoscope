@@ -43,6 +43,8 @@ class FundSourcesTest(unittest.TestCase):
             normalize_entries({"entries": [{"isin": "IE00B4L5Y984"}]})
         with self.assertRaisesRegex(ValueError, "currency"):
             normalize_entries({"entries": [{"isin": "AAPL", "currency": "BTC"}]})
+        with self.assertRaisesRegex(ValueError, "Morningstar"):
+            normalize_entries({"entries": [{"isin": ISIN, "morningstarId": "bad/id"}]})
 
     def test_request_options_are_validated(self):
         with self.assertRaisesRegex(ValueError, "date"):
@@ -95,6 +97,7 @@ class FundSourcesTest(unittest.TestCase):
         args = dict(isin=ISIN, currency="EUR", start_date="2000-01-01", frequency="daily", language="es")
         self.assertNotEqual(_make_cache_key(**args), _make_cache_key(**args, yahoo_symbol="VWCE.DE"))
         self.assertNotEqual(_make_cache_key(**args, yahoo_symbol="VWCE.DE"), _make_cache_key(**args, yahoo_symbol="OTHER.DE"))
+        self.assertNotEqual(_make_cache_key(**args), _make_cache_key(**args, morningstar_id="F00000WI0D"))
 
     @patch("backend.funds.yahoo_client._session")
     def test_yahoo_checks_type_currency_and_history(self, session):

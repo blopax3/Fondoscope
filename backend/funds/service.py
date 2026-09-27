@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from .config import DEFAULT_CURRENCY, DEFAULT_FREQUENCY, DEFAULT_START_DATE
 from .models import FundSnapshot
 from .morningstar_client import MorningstarScraperError, normalize_isin, resolve_history
-from .identifiers import ISIN_PATTERN, normalize_yahoo_symbol
+from .identifiers import ISIN_PATTERN, normalize_morningstar_id, normalize_yahoo_symbol
 from .yahoo_client import YahooFinanceError, fetch_yahoo_history
 
 
@@ -17,6 +17,8 @@ def get_fund_snapshot(
     frequency: str = DEFAULT_FREQUENCY,
     language: str = "en",
     yahoo_symbol: str = "",
+    morningstar_id: str = "",
+    morningstar_name: str = "",
 ) -> FundSnapshot:
     raw_identifier = isin.strip().upper() if isinstance(isin, str) else ""
     normalized_isin = normalize_isin(raw_identifier)
@@ -26,6 +28,8 @@ def get_fund_snapshot(
         raise ValueError("ISIN o símbolo de Yahoo inválido." if language == "es" else "Invalid ISIN or Yahoo symbol.")
     if yahoo_symbol and not normalize_yahoo_symbol(yahoo_symbol):
         raise ValueError("Símbolo de Yahoo inválido." if language == "es" else "Invalid Yahoo symbol.")
+    if morningstar_id and not normalize_morningstar_id(morningstar_id):
+        raise ValueError("ID de Morningstar inválido." if language == "es" else "Invalid Morningstar ID.")
     if direct_symbol:
         try:
             fund_name, history, metadata = fetch_yahoo_history(
@@ -39,6 +43,7 @@ def get_fund_snapshot(
             fund_name, history, metadata = resolve_history(
                 normalized_isin, start_date=start_date, currency=currency,
                 frequency=frequency, language=language,
+                resolved_id=morningstar_id, resolved_name=morningstar_name,
             )
             if history.empty:
                 raise MorningstarScraperError("Morningstar: empty history")

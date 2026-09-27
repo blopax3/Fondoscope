@@ -9,7 +9,7 @@ from typing import Any
 
 from .cache import get_cached_fund_response, set_cached_fund_response
 from .morningstar_client import normalize_isin, normalize_language
-from .identifiers import ISIN_PATTERN, normalize_yahoo_symbol
+from .identifiers import ISIN_PATTERN, normalize_morningstar_id, normalize_yahoo_symbol
 from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
 
 DEFAULT_MAX_WORKERS = 4
@@ -58,7 +58,19 @@ def normalize_entries(payload: dict[str, object], language: str = "en") -> list[
             symbol = normalize_yahoo_symbol(raw_symbol)
             if raw_symbol and not symbol:
                 raise ValueError("Símbolo de Yahoo inválido." if spanish else "Invalid Yahoo symbol.")
-            normalized_entries.append({"isin": identifier, "currency": currency, "yahooSymbol": symbol})
+            raw_morningstar_id = entry.get("morningstarId", "")
+            morningstar_id = normalize_morningstar_id(raw_morningstar_id)
+            if raw_morningstar_id and (direct_symbol or not morningstar_id):
+                raise ValueError("ID de Morningstar inválido." if spanish else "Invalid Morningstar ID.")
+            morningstar_name = str(entry.get("morningstarName", "")).strip()[:200] if morningstar_id else ""
+            normalized_entry = {
+                "isin": identifier,
+                "currency": currency,
+                "yahooSymbol": symbol,
+            }
+            if morningstar_id:
+                normalized_entry.update({"morningstarId": morningstar_id, "morningstarName": morningstar_name})
+            normalized_entries.append(normalized_entry)
 
         return normalized_entries
 
@@ -108,6 +120,8 @@ def load_fund_entry(
     isin = entry.get("isin", "")
     currency = entry.get("currency", "AUTO")
     yahoo_symbol = entry.get("yahooSymbol", "")
+    morningstar_id = entry.get("morningstarId", "")
+    morningstar_name = entry.get("morningstarName", "")
     if not isin:
         return {"fund": None, "error": None}
 
@@ -119,6 +133,7 @@ def load_fund_entry(
             frequency=frequency,
             language=language,
             yahoo_symbol=yahoo_symbol,
+            morningstar_id=morningstar_id,
         )
         if cached_result is not None:
             return {"fund": cached_result, "error": None}
@@ -130,6 +145,8 @@ def load_fund_entry(
             frequency=frequency,
             language=language,
             yahoo_symbol=yahoo_symbol,
+            morningstar_id=morningstar_id,
+            morningstar_name=morningstar_name,
         )
         result = serialize_snapshot(snapshot)
         result["currency"] = currency
@@ -142,6 +159,7 @@ def load_fund_entry(
             frequency=frequency,
             language=language,
             yahoo_symbol=yahoo_symbol,
+            morningstar_id=morningstar_id,
             payload=result,
         )
         return {"fund": result, "error": None}

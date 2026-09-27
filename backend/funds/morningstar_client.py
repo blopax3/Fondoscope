@@ -5,7 +5,7 @@ import requests
 
 from .config import DEFAULT_UNIVERSES, HEADERS
 from .models import SearchCandidate
-from .identifiers import normalize_isin
+from .identifiers import normalize_isin, normalize_morningstar_id
 
 
 class MorningstarScraperError(Exception):
@@ -171,11 +171,19 @@ def resolve_history(
     frequency: str,
     universes: tuple[str, ...] = DEFAULT_UNIVERSES,
     language: str = "en",
+    resolved_id: str = "",
+    resolved_name: str = "",
 ) -> tuple[str, pd.DataFrame, dict[str, str]]:
     normalized_input = normalize_isin(isin)
     if not normalized_input:
         raise MorningstarScraperError("ISIN inválido." if language == "es" else "Invalid ISIN.")
-    candidates = search_candidates(normalized_input, language=language)
+    normalized_resolved_id = normalize_morningstar_id(resolved_id)
+    if resolved_id and not normalized_resolved_id:
+        raise MorningstarScraperError("ID de Morningstar inválido." if language == "es" else "Invalid Morningstar ID.")
+    candidates = (
+        [SearchCandidate(resolved_name or normalized_input, {"i": normalized_resolved_id})]
+        if normalized_resolved_id else search_candidates(normalized_input, language=language)
+    )
     errors: list[str] = []
 
     for candidate in candidates:
