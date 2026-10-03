@@ -19,6 +19,7 @@ def get_fund_snapshot(
     yahoo_symbol: str = "",
     morningstar_id: str = "",
     morningstar_name: str = "",
+    deadline: float | None = None,
 ) -> FundSnapshot:
     raw_identifier = isin.strip().upper() if isinstance(isin, str) else ""
     normalized_isin = normalize_isin(raw_identifier)
@@ -35,6 +36,7 @@ def get_fund_snapshot(
             fund_name, history, metadata = fetch_yahoo_history(
                 direct_symbol, start_date=start_date, currency=currency,
                 frequency=frequency, language=language,
+                deadline=deadline,
             )
         except YahooFinanceError as yahoo_error:
             raise MorningstarScraperError(str(yahoo_error)) from yahoo_error
@@ -44,6 +46,7 @@ def get_fund_snapshot(
                 normalized_isin, start_date=start_date, currency=currency,
                 frequency=frequency, language=language,
                 resolved_id=morningstar_id, resolved_name=morningstar_name,
+                deadline=deadline,
             )
             if history.empty:
                 raise MorningstarScraperError("Morningstar: empty history")
@@ -58,6 +61,7 @@ def get_fund_snapshot(
                 fund_name, history, metadata = fetch_yahoo_history(
                     yahoo_symbol, start_date=start_date, currency=currency,
                     frequency=frequency, language=language,
+                    deadline=deadline,
                 )
             except YahooFinanceError as yahoo_error:
                 raise MorningstarScraperError(str(yahoo_error)) from yahoo_error

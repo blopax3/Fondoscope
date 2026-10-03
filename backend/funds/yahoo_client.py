@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import UTC, datetime
 from urllib.parse import quote
 
-from .config import HEADERS
+from .config import HEADERS, normalize_currency, request_timeout
 from .identifiers import normalize_yahoo_symbol
 
 class YahooFinanceError(Exception):
@@ -13,7 +13,7 @@ class YahooFinanceError(Exception):
 
 
 def fetch_yahoo_history(symbol: str, *, start_date: str, currency: str,
-                        frequency: str, language: str = "en"):
+                        frequency: str, language: str = "en", deadline: float | None = None):
     symbol = normalize_yahoo_symbol(symbol)
     spanish = language == "es"
     if not symbol:
@@ -28,7 +28,7 @@ def fetch_yahoo_history(symbol: str, *, start_date: str, currency: str,
             f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(symbol, safe='')}",
             params={"period1": int(pd.Timestamp(start_date, tz="UTC").timestamp()),
                     "period2": int(datetime.now(UTC).timestamp()), "interval": interval},
-            timeout=30,
+            timeout=request_timeout(deadline),
         )
         response.raise_for_status()
         chart = response.json()["chart"]
@@ -36,7 +36,10 @@ def fetch_yahoo_history(symbol: str, *, start_date: str, currency: str,
             raise ValueError("Yahoo chart error")
         result = chart["result"][0]
         metadata = result["meta"]
-        actual_currency = metadata.get("currency", "")
+        quote_currency = metadata.get("currency", "")
+        actual_currency = normalize_currency(quote_currency) if quote_currency else ""
+        if not actual_currency:
+            raise ValueError("Missing or unsupported quote currency")
         if currency != "AUTO" and actual_currency != currency:
             raise YahooFinanceError(
                 f"Yahoo publica {symbol} en {actual_currency or '?'}. Selecciona esa divisa; no se realiza conversión."
@@ -47,13 +50,15 @@ def fetch_yahoo_history(symbol: str, *, start_date: str, currency: str,
         # Use closing prices, consistent with Morningstar NAV rather than total returns.
         history = pd.DataFrame({"date": dates, "price": result["indicators"]["quote"][0]["close"]})
         history["price"] = pd.to_numeric(history["price"], errors="coerce")
+        if quote_currency in {"GBp", "GBX"}:
+            history["price"] /= 100
         history = history.dropna().query("price > 0 and price < inf").drop_duplicates("date").sort_values("date")
         history = history[history["date"] >= pd.Timestamp(start_date)].reset_index(drop=True)
         if history.empty:
             raise ValueError("Empty history")
     except YahooFinanceError:
         raise
-    except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as error:
+    except (requests.RequestException, ValueError, KeyError, IndexError, TypeError, TimeoutError) as error:
         raise YahooFinanceError(
             f"No se pudo obtener histórico de Yahoo Finance para {symbol}. Comprueba el símbolo o inténtalo más tarde."
             if spanish else f"Could not retrieve Yahoo Finance history for {symbol}. Check the symbol or try again later."

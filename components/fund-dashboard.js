@@ -41,9 +41,11 @@ function resolveInitialTheme() {
     return "dark";
   }
 
-  const storedTheme = window.localStorage.getItem("fondoscope-theme");
-  if (storedTheme === "light" || storedTheme === "dark") {
-    return storedTheme;
+  try {
+    const storedTheme = window.localStorage.getItem("fondoscope-theme");
+    if (storedTheme === "light" || storedTheme === "dark") return storedTheme;
+  } catch {
+    // Theme switching also works when browser storage is unavailable.
   }
 
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
@@ -66,11 +68,11 @@ export default function FundDashboard({ language = "en" }) {
   const [errors, setErrors] = useState([]);
   const [requestError, setRequestError] = useState("");
   const [loading, setLoading] = useState(false);
-  const initializedFromUrl = useRef(false);
+  const initialQueryRef = useRef(null);
   const loadAbortControllerRef = useRef(null);
   const searchAbortControllerRef = useRef(null);
   const portfolioNameInputRef = useRef(null);
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(null);
   const [shareStatus, setShareStatus] = useState("");
   const { portfolios, savePortfolio, removePortfolio } = useSavedPortfolios();
   function handleRemoveEntry(isin) {
@@ -86,6 +88,7 @@ export default function FundDashboard({ language = "en" }) {
 
     try {
       const payload = await fetchFunds(entries, language, controller.signal);
+      if (controller.signal.aborted || loadAbortControllerRef.current !== controller) return;
       setFunds(payload.funds || []);
       setSelectedFunds((payload.funds || []).map((fund) => fund.isin));
       setErrors(payload.errors || []);
@@ -104,12 +107,8 @@ export default function FundDashboard({ language = "en" }) {
   }, [dashboard.loadError, language]);
 
   useEffect(() => {
-    if (initializedFromUrl.current) {
-      return;
-    }
-
-    initializedFromUrl.current = true;
-    const query = new URLSearchParams(window.location.search);
+    initialQueryRef.current ??= new URLSearchParams(window.location.search);
+    const query = initialQueryRef.current;
     const entriesFromQuery = buildEntriesFromQuery(query);
     const queryRange = normalizeRange(query.get("range") || "1Y");
     setRangeKey(queryRange);
@@ -170,8 +169,13 @@ export default function FundDashboard({ language = "en" }) {
   }, []);
 
   useEffect(() => {
+    if (!theme) return;
     document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem("fondoscope-theme", theme);
+    try {
+      window.localStorage.setItem("fondoscope-theme", theme);
+    } catch {
+      // Keep the chosen theme for this session even when it cannot be saved.
+    }
   }, [theme]);
 
   useEffect(() => {
@@ -244,7 +248,10 @@ export default function FundDashboard({ language = "en" }) {
   }
 
   function handleDeletePortfolio(id) {
-    removePortfolio(id);
+    if (!removePortfolio(id)) {
+      setRequestError(dashboard.portfolioDeleteError);
+      return;
+    }
     setRequestError("");
   }
 
@@ -341,7 +348,10 @@ export default function FundDashboard({ language = "en" }) {
     <main className="workspace">
       <section className="workspace__masthead">
         <header className="workspace__header">
-          <h1>Fondoscope</h1>
+          <h1>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- A full navigation resets the comparison. */}
+            <a href="/" aria-label={dashboard.resetLabel}>Fondoscope</a>
+          </h1>
           <p className="workspace__subtitle">
             {dashboard.subtitle}
           </p>
@@ -511,6 +521,7 @@ export default function FundDashboard({ language = "en" }) {
                   className="portfolio-controls__name"
                   type="text"
                   placeholder={dashboard.portfolioNamePlaceholder}
+                  aria-label={dashboard.portfolioNamePlaceholder}
                 />
                 <button type="button" className="btn btn--secondary" onClick={handleSaveComparison}>
                   {dashboard.saveComparisonButton}

@@ -73,6 +73,8 @@ pnpm install
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
+
+pnpm exec playwright install --with-deps chromium
 ```
 
 No environment variables or API keys are required.
@@ -96,14 +98,23 @@ python -m unittest discover -s tests -p 'test_*.py'
 # Comparison and saved-entry checks
 node --experimental-default-type=module tests/fund-data.test.mjs
 
-# Lint and build the Next.js application
+# Run unit and backend tests without a browser
+pnpm test:unit
+
+# Lint, test, build, and run browser regressions in production and development
 pnpm check
 
 # Run the production build
 pnpm start
 ```
 
-`pnpm start` requires a previous `pnpm check` or `pnpm build`.
+`pnpm start` requires a previous `pnpm check` or `pnpm build`. Browser checks start
+their own servers on ports 3030 and 3031 and use mocked provider responses.
+Development uses `.next-dev` so it can run alongside the production build.
+Dependency overrides keep compatible security patches in place; the Next.js
+linter uses `tinyglobby` in place of `fast-glob`, whose `braces` dependency has no
+patched release. A small pnpm patch preserves directory glob behavior, covered by
+a regression check.
 
 ## Project structure
 
@@ -123,8 +134,13 @@ docs/images/         Documentation screenshots
 - **Yahoo Finance** provides historical data for exchange-traded symbols, including stocks, ETFs, and indices.
 - Every asset is displayed in its native currency; Fondoscope does not perform currency conversion.
 - Yahoo data uses unadjusted closing prices and does not include dividends.
+- Yahoo prices quoted in British pence (`GBp`/`GBX`) are displayed in pounds (`GBP`).
 - Common-period comparisons use the first and last dates shared by all selected assets inside the chosen range. The table displays the dates and number of observations used for each asset. With common period turned off, metrics use the nearest observation within seven days at a period boundary.
 - Volatility is annualized over 252 trading sessions, while correlation uses consecutive returns over shared intervals.
+- Charts, metrics, observation counts, and correlation use the same selected observations.
+- Morningstar IDs supplied in saved entries or links are checked against the requested ISIN.
+- Historical requests have a 40-second budget and return completed assets with errors for those that time out. The temporary SQLite cache preserves concurrent writes between local Python processes.
+- Clicking **Fondoscope** starts a fresh comparison while keeping saved portfolios and the chosen theme.
 
 ## Disclaimer
 

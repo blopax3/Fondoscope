@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import requests
 
-from .config import DEFAULT_UNIVERSES, HEADERS
+from .config import DEFAULT_UNIVERSES, HEADERS, normalize_currency, request_timeout
 from .models import SearchCandidate
 from .identifiers import normalize_isin, normalize_morningstar_id
 
@@ -64,16 +64,16 @@ def _parse_security_search_response(payload: object, isin: str) -> list[SearchCa
         if not isinstance(secid, str) or not secid.strip() or secid in seen:
             continue
         seen.add(secid)
-        currency = str(row.get("Currency") or "").strip().upper()
+        currency = normalize_currency(row["Currency"]) if row.get("Currency") else ""
         results.append(SearchCandidate(
             name=str(row.get("Name") or isin),
             raw={"i": secid.strip()},
-            currency=currency if len(currency) == 3 and currency.isalpha() else "",
+            currency=currency,
         ))
     return results
 
 
-def search_candidates(isin: str, timeout: int = 20, language: str = "en") -> list[SearchCandidate]:
+def search_candidates(isin: str, timeout: int = 8, language: str = "en", deadline: float | None = None) -> list[SearchCandidate]:
     normalized_isin = normalize_isin(isin)
     if not normalized_isin:
         raise MorningstarScraperError("ISIN inválido." if language == "es" else "Invalid ISIN.")
@@ -90,10 +90,10 @@ def search_candidates(isin: str, timeout: int = 20, language: str = "en") -> lis
             "universeIds": "|".join(DEFAULT_UNIVERSES),
             "securityDataPoints": "SecId,Name,ISIN,Currency",
             "filters": f"ISIN:EQ:{normalized_isin}",
-        }, timeout=timeout)
+        }, timeout=request_timeout(deadline, timeout))
         response.raise_for_status()
         results = _parse_security_search_response(response.json(), normalized_isin)
-    except (requests.RequestException, ValueError) as error:
+    except (requests.RequestException, ValueError, TimeoutError) as error:
         raise MorningstarScraperError(
             translate(
                 language,
@@ -117,8 +117,9 @@ def fetch_history_by_id(
     currency: str,
     frequency: str,
     universe: str,
-    timeout: int = 30,
+    timeout: int = 8,
     language: str = "en",
+    deadline: float | None = None,
 ) -> pd.DataFrame:
     url = "https://lt.morningstar.com/api/rest.svc/timeseries_price/t92wz0sj7c"
     params = {
@@ -131,7 +132,7 @@ def fetch_history_by_id(
     if currency:
         params["currencyId"] = currency
 
-    response = _localized_session(language).get(url, params=params, timeout=timeout)
+    response = _localized_session(language).get(url, params=params, timeout=request_timeout(deadline, timeout))
     response.raise_for_status()
     payload = response.json()
 
@@ -158,6 +159,8 @@ def fetch_history_by_id(
     return (
         dataframe[["date", "price"]]
         .dropna(subset=["date", "price"])
+        .query("price > 0 and price < inf")
+        .drop_duplicates("date", keep="last")
         .sort_values("date")
         .reset_index(drop=True)
     )
@@ -173,6 +176,7 @@ def resolve_history(
     language: str = "en",
     resolved_id: str = "",
     resolved_name: str = "",
+    deadline: float | None = None,
 ) -> tuple[str, pd.DataFrame, dict[str, str]]:
     normalized_input = normalize_isin(isin)
     if not normalized_input:
@@ -180,10 +184,14 @@ def resolve_history(
     normalized_resolved_id = normalize_morningstar_id(resolved_id)
     if resolved_id and not normalized_resolved_id:
         raise MorningstarScraperError("ID de Morningstar inválido." if language == "es" else "Invalid Morningstar ID.")
-    candidates = (
-        [SearchCandidate(resolved_name or normalized_input, {"i": normalized_resolved_id})]
-        if normalized_resolved_id else search_candidates(normalized_input, language=language)
-    )
+    candidates = search_candidates(normalized_input, language=language, deadline=deadline)
+    if normalized_resolved_id:
+        candidates = [candidate for candidate in candidates if normalized_resolved_id in dict(candidate.candidate_ids).values()]
+        if not candidates:
+            raise ValueError(
+                "El ID de Morningstar no corresponde al ISIN solicitado." if language == "es" else
+                "The Morningstar ID does not match the requested ISIN."
+            )
     errors: list[str] = []
 
     for candidate in candidates:
@@ -201,6 +209,7 @@ def resolve_history(
                         frequency=frequency,
                         universe=universe,
                         language=language,
+                        deadline=deadline,
                     )
                 except Exception as error:
                     errors.append(f"{id_kind}={candidate_id} universe={universe} -> {error}")

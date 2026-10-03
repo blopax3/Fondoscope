@@ -1,9 +1,12 @@
 .next
+.next-dev
 node_modules
 .venv
 .vercel
 data/cache
 __pycache__
 *.pyc
+test-results/
+playwright-report/
 .agents/
 skills-lock.json

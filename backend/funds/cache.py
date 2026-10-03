@@ -1,17 +1,17 @@
 from __future__ import annotations
 
+from contextlib import closing, contextmanager
 import hashlib
 import json
-import threading
-import time
 from pathlib import Path
+import sqlite3
 from tempfile import gettempdir
+import time
 from typing import Any
 
 CACHE_TTL_SECONDS = 6 * 60 * 60
 CACHE_MAX_ENTRIES = 300
-CACHE_FILE_PATH = Path(gettempdir()) / "fondoscope-funds-cache-v5.json"
-CACHE_LOCK = threading.Lock()
+CACHE_FILE_PATH = Path(gettempdir()) / "fondoscope-funds-cache-v6.sqlite3"
 
 
 def _make_cache_key(*, isin: str, currency: str, start_date: str, frequency: str, language: str, yahoo_symbol: str = "", morningstar_id: str = "") -> str:
@@ -19,110 +19,42 @@ def _make_cache_key(*, isin: str, currency: str, start_date: str, frequency: str
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _read_cache_file() -> dict[str, Any]:
-    if not CACHE_FILE_PATH.exists():
-        return {"entries": {}}
-
-    try:
-        payload = json.loads(CACHE_FILE_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {"entries": {}}
-
-    entries = payload.get("entries")
-    if not isinstance(entries, dict):
-        return {"entries": {}}
-
-    return {"entries": entries}
-
-
-def _write_cache_file(payload: dict[str, Any]) -> None:
-    try:
-        CACHE_FILE_PATH.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-    except OSError:
-        pass
-
-
-def _prune_entries(entries: dict[str, Any], now: float) -> dict[str, Any]:
-    valid_items: list[tuple[str, Any]] = []
-    for key, value in entries.items():
-        if not isinstance(value, dict):
-            continue
-
-        expires_at = value.get("expires_at")
-        if not isinstance(expires_at, (int, float)) or expires_at <= now:
-            continue
-
-        valid_items.append((key, value))
-
-    valid_items.sort(key=lambda item: float(item[1].get("updated_at", 0)), reverse=True)
-    return dict(valid_items[:CACHE_MAX_ENTRIES])
+@contextmanager
+def _connection():
+    with closing(sqlite3.connect(CACHE_FILE_PATH, timeout=1)) as connection:
+        with connection:
+            connection.execute("CREATE TABLE IF NOT EXISTS funds (key TEXT PRIMARY KEY, expires_at REAL, updated_at REAL, payload TEXT)")
+            yield connection
 
 
 def get_cached_fund_response(
-    *,
-    isin: str,
-    currency: str,
-    start_date: str,
-    frequency: str,
-    language: str,
-    yahoo_symbol: str = "",
-    morningstar_id: str = "",
+    *, isin: str, currency: str, start_date: str, frequency: str, language: str,
+    yahoo_symbol: str = "", morningstar_id: str = "",
 ) -> dict[str, Any] | None:
-    key = _make_cache_key(
-        isin=isin,
-        currency=currency,
-        start_date=start_date,
-        frequency=frequency,
-        language=language,
-        yahoo_symbol=yahoo_symbol,
-        morningstar_id=morningstar_id,
-    )
-    now = time.time()
-    with CACHE_LOCK:
-        cache = _read_cache_file()
-    entries = cache["entries"]
-    entry = entries.get(key)
-
-    if not isinstance(entry, dict):
+    key = _make_cache_key(isin=isin, currency=currency, start_date=start_date, frequency=frequency,
+                          language=language, yahoo_symbol=yahoo_symbol, morningstar_id=morningstar_id)
+    try:
+        with _connection() as connection:
+            row = connection.execute("SELECT payload FROM funds WHERE key = ? AND expires_at > ?", (key, time.time())).fetchone()
+        payload = json.loads(row[0]) if row else None
+        return payload if isinstance(payload, dict) else None
+    except (sqlite3.Error, OSError, ValueError):
         return None
-
-    expires_at = entry.get("expires_at")
-    payload = entry.get("payload")
-    if not isinstance(expires_at, (int, float)) or expires_at <= now or not isinstance(payload, dict):
-        return None
-
-    return payload
 
 
 def set_cached_fund_response(
-    *,
-    isin: str,
-    currency: str,
-    start_date: str,
-    frequency: str,
-    language: str,
-    yahoo_symbol: str = "",
-    morningstar_id: str = "",
-    payload: dict[str, Any],
+    *, isin: str, currency: str, start_date: str, frequency: str, language: str,
+    yahoo_symbol: str = "", morningstar_id: str = "", payload: dict[str, Any],
 ) -> None:
-    key = _make_cache_key(
-        isin=isin,
-        currency=currency,
-        start_date=start_date,
-        frequency=frequency,
-        language=language,
-        yahoo_symbol=yahoo_symbol,
-        morningstar_id=morningstar_id,
-    )
-
+    key = _make_cache_key(isin=isin, currency=currency, start_date=start_date, frequency=frequency,
+                          language=language, yahoo_symbol=yahoo_symbol, morningstar_id=morningstar_id)
     now = time.time()
-    with CACHE_LOCK:
-        cache = _read_cache_file()
-        entries = _prune_entries(cache["entries"], now)
-        entries[key] = {
-            "updated_at": now,
-            "expires_at": now + CACHE_TTL_SECONDS,
-            "payload": payload,
-        }
-        cache["entries"] = _prune_entries(entries, now)
-        _write_cache_file(cache)
+    try:
+        with _connection() as connection:
+            connection.execute("INSERT OR REPLACE INTO funds VALUES (?, ?, ?, ?)",
+                               (key, now + CACHE_TTL_SECONDS, now, json.dumps(payload, ensure_ascii=False)))
+            connection.execute("DELETE FROM funds WHERE expires_at <= ?", (now,))
+            connection.execute("DELETE FROM funds WHERE key NOT IN (SELECT key FROM funds ORDER BY updated_at DESC LIMIT ?)", (CACHE_MAX_ENTRIES,))
+    except (sqlite3.Error, OSError):
+        # A cache failure must not discard successfully fetched history.
+        pass

@@ -51,12 +51,13 @@ export function useSavedPortfolios() {
   }, []);
 
   const persist = useCallback((next) => {
-    setPortfolios(next);
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch {
-      // localStorage might be unavailable or full
+      return false;
     }
+    setPortfolios(next);
+    return true;
   }, []);
 
   const savePortfolio = useCallback((name, entries, rangeKey = "1Y", commonPeriod = true) => {
@@ -91,12 +92,11 @@ export function useSavedPortfolios() {
       next.unshift(record);
     }
 
-    persist(next);
-    return true;
+    return persist(next);
   }, [persist, portfolios]);
 
   const removePortfolio = useCallback((id) => {
-    persist(portfolios.filter((item) => item.id !== id));
+    return persist(portfolios.filter((item) => item.id !== id));
   }, [persist, portfolios]);
 
   return useMemo(() => ({

@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 from datetime import date
 import json
 import os
 import sys
+from time import monotonic
 from typing import Any
 
 from .cache import get_cached_fund_response, set_cached_fund_response
+from .config import HISTORY_BUDGET_SECONDS, normalize_currency
 from .morningstar_client import normalize_isin, normalize_language
 from .identifiers import ISIN_PATTERN, normalize_morningstar_id, normalize_yahoo_symbol
-from .service import MorningstarScraperError, get_fund_snapshot, serialize_snapshot
+from .service import get_fund_snapshot, serialize_snapshot
 
 DEFAULT_MAX_WORKERS = 4
-SUPPORTED_CURRENCIES = {"AUTO", "EUR", "USD", "GBP", "CHF", "JPY", "SEK", "NOK", "DKK", "CAD", "AUD"}
 SUPPORTED_FREQUENCIES = {"daily", "weekly", "monthly"}
 
 
@@ -49,11 +50,10 @@ def normalize_entries(payload: dict[str, object], language: str = "en") -> list[
 
             seen.add(identifier)
             currency_value = entry.get("currency", "AUTO")
-            currency = currency_value.strip().upper() if isinstance(currency_value, str) else "AUTO"
-            currency = currency or "AUTO"
-            if currency not in SUPPORTED_CURRENCIES:
+            currency = normalize_currency(currency_value)
+            if not currency:
                 message = "Divisa no compatible: " if spanish else "Unsupported currency: "
-                raise ValueError(message + currency)
+                raise ValueError(message + str(currency_value))
             raw_symbol = direct_symbol or entry.get("yahooSymbol", "")
             symbol = normalize_yahoo_symbol(raw_symbol)
             if raw_symbol and not symbol:
@@ -79,11 +79,10 @@ def normalize_entries(payload: dict[str, object], language: str = "en") -> list[
         return []
 
     global_currency_value = payload.get("currency", "AUTO")
-    global_currency = global_currency_value.strip().upper() if isinstance(global_currency_value, str) else "AUTO"
-    global_currency = global_currency or "AUTO"
-    if global_currency not in SUPPORTED_CURRENCIES:
+    global_currency = normalize_currency(global_currency_value)
+    if not global_currency:
         message = "Divisa no compatible: " if spanish else "Unsupported currency: "
-        raise ValueError(message + global_currency)
+        raise ValueError(message + str(global_currency_value))
     normalized_entries = []
     seen: set[str] = set()
 
@@ -116,6 +115,7 @@ def load_fund_entry(
     start_date: str,
     frequency: str,
     language: str,
+    deadline: float | None = None,
 ) -> dict[str, Any]:
     isin = entry.get("isin", "")
     currency = entry.get("currency", "AUTO")
@@ -147,6 +147,7 @@ def load_fund_entry(
             yahoo_symbol=yahoo_symbol,
             morningstar_id=morningstar_id,
             morningstar_name=morningstar_name,
+            deadline=deadline,
         )
         result = serialize_snapshot(snapshot)
         result["currency"] = currency
@@ -163,8 +164,6 @@ def load_fund_entry(
             payload=result,
         )
         return {"fund": result, "error": None}
-    except MorningstarScraperError as error:
-        return {"fund": None, "error": {"isin": isin, "error": str(error)}}
     except Exception as error:
         return {"fund": None, "error": {"isin": isin, "error": str(error)}}
 
@@ -200,7 +199,9 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
     ordered_results: list[dict[str, Any] | None] = [None] * len(entries)
     max_workers = _resolve_max_workers(len(entries))
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    deadline = monotonic() + HISTORY_BUDGET_SECONDS
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    try:
         futures = {
             executor.submit(
                 load_fund_entry,
@@ -208,12 +209,20 @@ def build_response(payload: dict[str, object]) -> dict[str, object]:
                 start_date=start_date,
                 frequency=frequency,
                 language=language,
+                deadline=deadline,
             ): index
             for index, entry in enumerate(entries)
         }
 
-        for future in as_completed(futures):
+        for future in as_completed(futures, timeout=max(0, deadline - monotonic())):
             ordered_results[futures[future]] = future.result()
+    except FuturesTimeoutError:
+        message = "Se agotó el tiempo de espera del histórico. Inténtalo de nuevo." if spanish else "History request timed out. Please try again."
+        for index, entry in enumerate(entries):
+            if ordered_results[index] is None:
+                ordered_results[index] = {"fund": None, "error": {"isin": entry["isin"], "error": message}}
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
     funds = [
         result["fund"]
@@ -236,9 +245,10 @@ def main() -> int:
         result = build_response(payload)
     except ValueError as error:
         result = {"error": str(error)}
-    print(json.dumps(result, ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=False), flush=True)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # This disposable CLI process must not wait for timed-out provider threads.
+    os._exit(main())

@@ -82,6 +82,11 @@ body::before {
   letter-spacing: 0.015em;
 }
 
+.workspace__header h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
 /* ── Input bar ── */
 
 .input-bar {
@@ -98,27 +103,6 @@ body::before {
 
 .input-bar__body:focus-within {
   border-color: var(--accent-border);
-}
-
-.input-bar textarea {
-  width: 100%;
-  min-height: 96px;
-  resize: vertical;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 0.86rem;
-  line-height: 1.75;
-  padding: 16px 18px;
-}
-
-.input-bar textarea::placeholder {
-  color: var(--text-dim);
-}
-
-.input-bar textarea:focus {
-  outline: none;
 }
 
 .input-bar__actions {
@@ -1649,11 +1633,6 @@ body {
   border-right: 0;
 }
 
-.input-bar textarea {
-  min-height: 180px;
-  padding-top: 14px;
-}
-
 .input-bar__actions,
 .portfolio-controls {
   background: transparent;
@@ -1833,13 +1812,6 @@ body {
 .input-bar__editor {
   min-width: 0;
   border-right: 0;
-}
-
-.input-bar textarea {
-  min-height: 180px;
-  padding: 14px 18px 18px;
-  font-size: 0.84rem;
-  line-height: 1.7;
 }
 
 .input-bar__actions {
@@ -2428,6 +2400,7 @@ body::before {
   display: none;
 }
 
+a:focus-visible,
 button:focus-visible,
 select:focus-visible,
 textarea:focus-visible,

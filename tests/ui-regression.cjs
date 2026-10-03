@@ -1,11 +1,22 @@
-// Run with a local server and PLAYWRIGHT_MODULE pointing to an installed playwright package.
 const assert = require('node:assert/strict');
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { test, expect } = require('@playwright/test');
 
-async function main() {
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, locale: 'es-ES' });
+async function mockFunds(page) {
+    await page.route('**/api/funds', async (route) => {
+      const submitted = route.request().postDataJSON();
+      await route.fulfill({ json: { errors: [], funds: submitted.entries.map((entry, index) => ({
+        ...entry, currency: index === 7 ? 'USD' : 'EUR',
+        name: `Fondo de prueba ${index + 1} con nombre largo y clase de acumulación`,
+        metadata: { provider: index === 0 ? 'yahoo' : 'morningstar' },
+        history: Array.from({ length: 100 }, (_, day) => ({
+          date: new Date(Date.UTC(2026, 4, day + 1)).toISOString().slice(0, 10),
+          price: 100 + day * 0.2 + Math.sin(day / (index + 1)),
+        })).slice(index === 1 ? 20 : 0),
+      })) } });
+    });
+}
+
+test('Asset search, saved comparisons, matrix and start link', async ({ page }) => {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     const isins = Array.from({ length: 8 }, (_, index) => {
@@ -18,22 +29,12 @@ async function main() {
       return base + ((10 - sum % 10) % 10);
     });
     let submitted;
-    await page.route('**/api/funds', async (route) => {
-      submitted = route.request().postDataJSON();
-      await route.fulfill({ json: { errors: [], funds: submitted.entries.map((entry, index) => ({
-        ...entry, currency: index === 7 ? 'USD' : 'EUR',
-        name: `Fondo de prueba ${index + 1} con nombre largo y clase de acumulación`,
-        metadata: { provider: index === 0 ? 'yahoo' : 'morningstar' },
-        history: Array.from({ length: 100 }, (_, day) => ({
-          date: new Date(Date.UTC(2026, 4, day + 1)).toISOString().slice(0, 10),
-          price: 100 + day * 0.2 + Math.sin(day / (index + 1)),
-        })).slice(index === 1 ? 20 : 0),
-      })) } });
-    });
+    await mockFunds(page);
+    page.on('request', (request) => { if (request.url().endsWith('/api/funds')) submitted = request.postDataJSON(); });
     await page.route('**/api/search?**', async (route) => {
       const query = new URL(route.request().url()).searchParams.get('q');
       const index = Number(query.replace('fund ', ''));
-      const yahoo = query === 'Apple';
+      const yahoo = query === 'apple';
       await route.fulfill({ json: { results: [{
         identifier: yahoo ? 'AAPL' : isins[index],
         name: yahoo ? 'Apple Inc.' : `Fondo de prueba ${index + 1}`,
@@ -44,7 +45,7 @@ async function main() {
         provider: yahoo ? 'yahoo' : 'morningstar',
       }] } });
     });
-    await page.goto('http://127.0.0.1:3000');
+    await page.goto('/');
     const input = page.locator('#asset-search');
     const submit = page.getByRole('button', { name: 'Consultar', exact: true });
     for (let index = 0; index < 7; index += 1) {
@@ -57,7 +58,7 @@ async function main() {
     await page.waitForFunction(() => document.querySelectorAll('.fund-entry').length === 8);
     assert.equal(await input.isDisabled(), true);
     await submit.click();
-    await page.locator('.fund-entry__source').first().waitFor();
+    await expect(page.locator('.fund-card')).toHaveCount(8);
     assert.equal(submitted.entries[7].isin, 'AAPL');
     assert.equal(submitted.entries[7].yahooSymbol, 'AAPL');
     assert.equal('currency' in submitted.entries[7], false);
@@ -114,9 +115,49 @@ async function main() {
     await scroller.screenshot({ path: '/tmp/fondoscope-correlation-mobile.png' });
     assert.deepEqual(errors, []);
     console.log('UI OK: asset search, keyboard selection, Morningstar/Yahoo routing, portfolio/URL persistence, matrix hover and mobile overflow.');
-  } finally {
-    await browser.close();
-  }
-}
+    await page.getByRole('button', { name: 'Cambiar a tema claro', exact: true }).click();
+    await page.getByRole('link', { name: 'Fondoscope — volver al inicio' }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator('.fund-entry')).toHaveCount(0);
+    await expect(page.locator('.fund-card')).toHaveCount(0);
+    await expect(page.locator('.empty-analysis')).toBeVisible();
+    await expect(input).toHaveValue('');
+    await expect(input).toBeEnabled();
+    await expect(submit).toBeDisabled();
+    await expect(page.locator('.portfolio-item')).toHaveCount(1);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+// Both blocked writes and a full quota must leave saved records consistent with storage.
+test('Storage failures are shown when saving or deleting portfolios', async ({ page }) => {
+  await mockFunds(page);
+  await page.goto('/?identifiers=AAPL');
+  await expect(page.locator('.fund-card')).toBeVisible();
+  await page.getByRole('button', { name: 'Guardar comparación', exact: true }).click();
+  await expect(page.locator('.portfolio-item')).toHaveCount(1);
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => { throw new DOMException('Storage full', 'QuotaExceededError'); };
+  });
+  await page.getByLabel('Nombre de cartera (opcional)').fill('Not saved');
+  await page.getByRole('button', { name: 'Guardar comparación', exact: true }).click();
+  await expect(page.locator('.banner--error')).toHaveText('No se pudo guardar la cartera local.');
+  await expect(page.locator('.portfolio-item')).toHaveCount(1);
+  await page.locator('.portfolio-item__delete').click();
+  await expect(page.locator('.banner--error')).toHaveText('No se pudo eliminar la cartera guardada.');
+  await expect(page.locator('.portfolio-item')).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator('.portfolio-item')).toHaveCount(1);
+});
+
+test('Strict Mode loads shared links and preserves theme in development', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('fondoscope-theme', 'light'));
+  await mockFunds(page);
+  const entries = encodeURIComponent(JSON.stringify([{ isin: 'AAPL', currency: 'USD', yahooSymbol: 'AAPL' }]));
+  await page.goto(`/?entries=${entries}&range=6M&common=0`);
+  await expect(page.locator('.fund-card')).toBeVisible();
+  await expect(page.locator('.fund-entry')).toHaveCount(1);
+  await expect(page.locator('.loading-overlay')).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  assert.equal(new URL(page.url()).searchParams.get('range'), '6M');
+  assert.equal(new URL(page.url()).searchParams.get('common'), '0');
+});

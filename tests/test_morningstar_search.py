@@ -31,6 +31,8 @@ class MorningstarSearchTest(unittest.TestCase):
     def test_wrong_share_classes_and_duplicate_results_are_ignored(self):
         payload = {"rows": [ROW, ROW, {**ROW, "ISIN": "IE00B4L5Y983"}, None, {"ISIN": ISIN}]}
         self.assertEqual(len(_parse_security_search_response(payload, ISIN)), 1)
+        for raw, expected in [("HKD", "HKD"), ("GBp", "GBP"), ("GBX", "GBP"), ("BTC", ""), (None, "")]:
+            self.assertEqual(_parse_security_search_response({"rows": [{**ROW, "Currency": raw}]}, ISIN)[0].currency, expected)
 
     @patch("backend.funds.morningstar_client.fetch_history_by_id")
     @patch("backend.funds.morningstar_client.search_candidates")
@@ -45,17 +47,33 @@ class MorningstarSearchTest(unittest.TestCase):
 
     @patch("backend.funds.morningstar_client.fetch_history_by_id")
     @patch("backend.funds.morningstar_client.search_candidates")
-    def test_search_result_id_skips_duplicate_resolution(self, search, fetch):
+    def test_search_result_id_is_verified_and_uses_server_name(self, search, fetch):
+        search.return_value = [SearchCandidate(ROW["Name"], {"i": ROW["SecId"]}, "EUR")]
         fetch.return_value = pd.DataFrame({"date": [pd.Timestamp("2026-01-02")], "price": [100]})
 
         name, _, metadata = resolve_history(
             ISIN, currency="EUR", frequency="daily", start_date="2000-01-01",
-            resolved_id="F00000WI0D", resolved_name="Azvalor Internacional FI",
+            resolved_id="F00000WI0D", resolved_name="Untrusted client name",
         )
 
-        search.assert_not_called()
+        search.assert_called_once_with(ISIN, language="en", deadline=None)
         self.assertEqual(name, "Azvalor Internacional FI")
         self.assertEqual(metadata["resolved_id"], "F00000WI0D")
+
+        _, _, metadata = resolve_history(
+            ISIN, currency="AUTO", frequency="daily", start_date="2000-01-01", resolved_id=ROW["SecId"],
+        )
+        self.assertEqual(metadata["resolved_currency"], "EUR")
+
+    @patch("backend.funds.morningstar_client.fetch_history_by_id")
+    @patch("backend.funds.morningstar_client.search_candidates")
+    def test_mismatched_id_never_fetches_or_falls_back_to_yahoo(self, search, fetch):
+        search.return_value = [SearchCandidate(ROW["Name"], {"i": ROW["SecId"]}, "EUR")]
+        with patch("backend.funds.service.fetch_yahoo_history") as yahoo:
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                get_fund_snapshot(ISIN, morningstar_id="F00000OTHER", yahoo_symbol="AAPL")
+            fetch.assert_not_called()
+            yahoo.assert_not_called()
 
     @patch("backend.funds.morningstar_client._session")
     def test_empty_results_are_distinct_from_invalid_server_responses(self, session):

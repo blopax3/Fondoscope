@@ -1,5 +1,5 @@
-import { normalizeFundIdentifierToken, normalizeIsinToken } from "../../../lib/fund-data";
-import { normalizeLanguage, resolveRequestLanguage } from "../../../lib/i18n";
+import { normalizeCurrencyToken, normalizeFundIdentifierToken, normalizeIsinToken } from "../../../lib/fund-data.js";
+import { normalizeLanguage, resolveRequestLanguage } from "../../../lib/i18n.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,15 +35,16 @@ async function searchMorningstar(query, language) {
   });
   if (!response.ok) throw new Error("Morningstar search failed");
   const payload = await response.json();
-  return (Array.isArray(payload.rows) ? payload.rows : []).flatMap((item) => {
+  if (!Array.isArray(payload?.rows)) throw new Error("Invalid Morningstar search response");
+  return payload.rows.flatMap((item) => {
     const identifier = normalizeIsinToken(item?.ISIN);
-    const currency = String(item?.Currency || "").trim().toUpperCase();
+    const currency = item?.Currency ? normalizeCurrencyToken(item.Currency) : "";
     const morningstarId = String(item?.SecId || "").trim().toUpperCase();
     return identifier ? [{
       identifier,
       name: String(item.Name || identifier),
       type: "FUND",
-      currency: /^[A-Z]{3}$/.test(currency) ? currency : "",
+      currency,
       exchange: "",
       provider: "morningstar",
       morningstarId: /^[A-Z0-9]{1,32}$/.test(morningstarId) ? morningstarId : "",
@@ -60,7 +61,8 @@ async function searchYahoo(query, language) {
   });
   if (!response.ok) throw new Error("Yahoo search failed");
   const payload = await response.json();
-  return (Array.isArray(payload.quotes) ? payload.quotes : []).flatMap((item) => {
+  if (!Array.isArray(payload?.quotes)) throw new Error("Invalid Yahoo search response");
+  return payload.quotes.flatMap((item) => {
     const identifier = normalizeFundIdentifierToken(item?.symbol);
     return identifier ? [{
       identifier,

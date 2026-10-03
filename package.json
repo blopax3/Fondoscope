@@ -4,26 +4,44 @@
   "description": "Search and compare historical data for funds, stocks, and ETFs",
   "private": true,
   "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:next": "next dev",
     "dev:vercel": "npx vercel dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "check": "pnpm run lint && next build --no-lint"
+    "lint": "eslint . --ext .js,.mjs,.cjs --ignore-path .gitignore",
+    "test:backend": "node scripts/test-backend.cjs",
+    "test:unit": "node --experimental-default-type=module --test tests/*.test.mjs && pnpm test:backend",
+    "test:ui": "playwright test",
+    "check": "pnpm lint && pnpm test:unit && pnpm build && pnpm test:ui"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "next": "^15.5.12",
+    "next": "^15.5.27",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^15.5.12"
+    "eslint-config-next": "^15.5.27"
+  },
+  "pnpm": {
+    "overrides": {
+      "next>postcss": "^8.5.28",
+      "js-yaml@4": "^4.3.2",
+      "brace-expansion@1": "^1.1.21",
+      "@next/eslint-plugin-next>fast-glob": "npm:tinyglobby@^0.2.15"
+    },
+    "patchedDependencies": {
+      "@next/eslint-plugin-next@15.5.27": "patches/@next__eslint-plugin-next@15.5.27.patch"
+    }
   }
 }

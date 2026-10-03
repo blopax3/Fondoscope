@@ -91,6 +91,7 @@ class FundSourcesTest(unittest.TestCase):
         yahoo.assert_called_once_with(
             "AAPL", start_date="2000-01-01", currency="AUTO",
             frequency="daily", language="en",
+            deadline=None,
         )
 
     def test_cache_separates_fallback_symbols(self):
@@ -119,9 +120,17 @@ class FundSourcesTest(unittest.TestCase):
         result["meta"]["currency"] = "EUR"
         name, history, metadata = fetch_yahoo_history("AAPL", **args)
         self.assertEqual(metadata["resolved_quote_type"], "EQUITY")
+        result["meta"]["currency"] = "GBp"
+        _, history, metadata = fetch_yahoo_history("BP.L", **{**args, "currency": "GBP"})
+        self.assertEqual(history.price.tolist(), [1, 1.02])
+        self.assertEqual(metadata["resolved_currency"], "GBP")
         session.return_value.get.return_value.json.return_value = {"chart": {"error": {"description": "Not found"}, "result": None}}
         with self.assertRaises(YahooFinanceError):
             fetch_yahoo_history("UNKNOWN", **args)
+
+    def test_native_currencies_and_quote_units_are_accepted(self):
+        self.assertEqual(normalize_entries({"entries": [{"isin": ISIN, "currency": "HKD"}]})[0]["currency"], "HKD")
+        self.assertEqual(normalize_entries({"entries": [{"isin": "BP.L", "currency": "GBp"}]})[0]["currency"], "GBP")
 
 
 if __name__ == "__main__":

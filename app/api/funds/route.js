@@ -29,6 +29,7 @@ async function forwardToPythonFunction(request, body) {
     },
     body: JSON.stringify(body),
     cache: "no-store",
+    signal: AbortSignal.timeout(55000),
   });
 
   const rawResponse = await response.text();
@@ -57,6 +58,7 @@ async function runLocalPython(body) {
     {
       cwd: process.cwd(),
       maxBuffer: 10 * 1024 * 1024,
+      timeout: 55000,
     }
   );
 
